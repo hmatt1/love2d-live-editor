@@ -1,0 +1,1239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LÖVE live editor</title>
+<style>
+:root {
+  --ink: #14131a;
+  --ink-2: #1c1a24;
+  --ink-3: #2b2836;
+  --ink-4: #383345;
+  --bench: #cfcabd;
+  --bench-2: #b6b0a1;
+  --bench-3: #9d9686;
+  --bench-txt: #2b2823;
+  --pink: #e8489b;
+  --amber: #d99a3f;
+  --mint: #63c7a6;
+  --txt: #d8d4e2;
+  --txt-dim: #7f7994;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --lh: 20px;
+  --split: 50%;
+  --k: 1;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--txt);
+  font: 13px/1.5 var(--mono);
+}
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+
+#app { height: 100%; display: grid; grid-template-rows: 46px 1fr; }
+
+/* ---------- top bar ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px;
+  background: var(--ink-2);
+  border-bottom: 1px solid var(--ink-3);
+}
+.mark {
+  display: flex; align-items: center; gap: 7px;
+  margin-right: 6px; padding-right: 12px;
+  border-right: 1px solid var(--ink-3);
+  color: var(--pink);
+  font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+}
+.mark svg { width: 13px; height: 13px; fill: currentColor; display: block; }
+.spacer { flex: 1; }
+
+.btn {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--ink-3);
+  border-radius: 3px;
+  color: var(--txt);
+  font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: #241f31; border-color: var(--ink-4); }
+.btn:disabled { opacity: .3; cursor: not-allowed; }
+.btn.primary { background: var(--pink); border-color: var(--pink); color: #190a12; font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: #f45ba9; border-color: #f45ba9; }
+
+.toggle {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--txt-dim);
+  font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+  cursor: pointer; user-select: none;
+}
+.toggle input { accent-color: var(--pink); margin: 0; }
+
+/* ---------- split ---------- */
+.split {
+  display: grid;
+  grid-template-columns: minmax(300px, var(--split)) 5px minmax(340px, 1fr);
+  min-height: 0;
+}
+.grip { background: var(--ink-3); cursor: col-resize; }
+.grip:hover, .grip.dragging { background: var(--pink); }
+
+/* ---------- editor pane ---------- */
+.editor {
+  display: grid; grid-template-rows: 32px 1fr auto;
+  min-width: 0; min-height: 0;
+  background: var(--ink);
+}
+.tabs {
+  display: flex; align-items: stretch;
+  background: var(--ink-2);
+  border-bottom: 1px solid var(--ink-3);
+  overflow-x: auto; scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  display: flex; align-items: center; gap: 7px;
+  padding: 0 10px 0 12px;
+  border: 0; border-right: 1px solid var(--ink-3);
+  background: transparent;
+  color: var(--txt-dim);
+  font-size: 11px; white-space: nowrap; cursor: pointer;
+}
+.tab:hover { color: var(--txt); }
+.tab[aria-selected="true"] { background: var(--ink); color: var(--txt); box-shadow: inset 0 2px 0 var(--pink); }
+.tab .x { opacity: 0; padding: 0 2px; border: 0; background: none; color: inherit;
+  font-size: 13px; line-height: 1; border-radius: 2px; cursor: pointer; }
+.tab:hover .x { opacity: .55; }
+.tab .x:hover { opacity: 1; color: var(--pink); }
+.tab.asset { font-style: italic; }
+.tab-add { padding: 0 12px; color: var(--txt-dim); }
+.tab-add:hover { color: var(--pink); }
+
+.edit-wrap { display: flex; min-height: 0; overflow: hidden; }
+.gutter {
+  flex: 0 0 auto; padding: 12px 10px 12px 12px;
+  overflow: hidden;
+  color: #4d475e; text-align: right;
+  line-height: var(--lh);
+  user-select: none;
+  border-right: 1px solid var(--ink-2);
+  background: var(--ink);
+}
+#code {
+  flex: 1; min-width: 0;
+  padding: 12px 16px 12px 12px;
+  border: 0; resize: none;
+  background: var(--ink); color: var(--txt);
+  line-height: var(--lh);
+  white-space: pre; overflow: auto; tab-size: 4;
+  outline: none;
+}
+#code::selection { background: #4a2440; }
+.asset-note {
+  flex: 1; display: grid; place-content: center; gap: 6px;
+  color: var(--txt-dim); text-align: center; padding: 24px;
+}
+.asset-note strong { color: var(--txt); font-weight: 600; }
+
+/* ---------- console ---------- */
+.console-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 12px; height: 26px;
+  background: var(--ink-2);
+  border-top: 1px solid var(--ink-3);
+  color: var(--txt-dim);
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+}
+.console-head button {
+  margin-left: auto; padding: 0; border: 0; background: none;
+  color: var(--txt-dim); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; cursor: pointer;
+}
+.console-head button:hover { color: var(--pink); }
+#console {
+  height: 168px; margin: 0; padding: 8px 12px;
+  overflow-y: auto;
+  background: #100f15;
+  font-size: 12px; line-height: 1.55;
+  white-space: pre-wrap; word-break: break-word;
+}
+#console div { color: var(--txt-dim); }
+#console .out { color: var(--txt); }
+#console .err { color: var(--amber); }
+#console .sys { color: #5f5975; }
+#console .fatal { color: var(--pink); }
+
+/* ---------- bench (preview) ---------- */
+.bench {
+  display: grid; grid-template-rows: 1fr auto;
+  min-width: 0; min-height: 0;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,.035) 0 1px, transparent 1px 4px),
+    var(--bench);
+  color: var(--bench-txt);
+}
+.stagearea { display: grid; place-items: center; min-height: 0; padding: 20px; overflow: hidden; }
+.device {
+  transform: scale(var(--k));
+  transform-origin: center center;
+  padding: 14px;
+  border-radius: 30px;
+  background: linear-gradient(#312d3b, #201d28);
+  box-shadow: 0 1px 0 rgba(255,255,255,.14) inset, 0 18px 34px -14px rgba(0,0,0,.55);
+}
+.speaker {
+  width: 46px; height: 4px; margin: 0 auto 10px;
+  border-radius: 2px; background: #15131c;
+}
+.screen {
+  position: relative;
+  width: 390px; height: 844px;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #000;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.6);
+}
+.screen iframe { display: block; width: 100%; height: 100%; border: 0; }
+.screen .idle {
+  position: absolute; inset: 0;
+  display: grid; place-content: center; gap: 10px;
+  color: #4a4458; text-align: center;
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+}
+
+/* ---------- spec plate ---------- */
+.plate {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 9px 16px;
+  border-top: 1px solid var(--bench-3);
+  background: var(--bench-2);
+  font-size: 11px; letter-spacing: .07em;
+}
+.plate label { text-transform: uppercase; color: #57503f; letter-spacing: .12em; font-size: 10px; }
+.plate select {
+  padding: 4px 6px; border: 1px solid var(--bench-3); border-radius: 3px;
+  background: var(--bench); color: var(--bench-txt); font-size: 11px;
+}
+.plate .val { font-variant-numeric: tabular-nums; }
+.plate .sep { width: 1px; align-self: stretch; background: var(--bench-3); }
+.status { display: flex; align-items: center; gap: 7px; text-transform: uppercase; letter-spacing: .12em; font-size: 10px; }
+.led { width: 8px; height: 8px; border-radius: 50%; background: #8a8375; box-shadow: 0 0 0 1px rgba(0,0,0,.25) inset; }
+.status[data-state="booting"] .led { background: var(--amber); animation: pulse .8s ease-in-out infinite; }
+.status[data-state="running"] .led { background: var(--mint); box-shadow: 0 0 7px var(--mint); }
+.status[data-state="paused"]  .led { background: #6f9fd8; }
+.status[data-state="error"]   .led { background: var(--pink); box-shadow: 0 0 7px var(--pink); }
+@keyframes pulse { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .status[data-state="booting"] .led { animation: none; } }
+
+.hidden { display: none !important; }
+</style>
+</head>
+
+<body>
+<div id="app">
+  <header class="topbar">
+    <span class="mark">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-8-5.2-8-10.6A4.4 4.4 0 0 1 12 7a4.4 4.4 0 0 1 8 3.4C20 15.8 12 21 12 21z"/></svg>
+      LÖVE live
+    </span>
+    <button class="btn primary" id="run">Run</button>
+    <button class="btn" id="stop" disabled>Stop</button>
+    <button class="btn" id="pause" disabled>Pause</button>
+    <label class="toggle"><input type="checkbox" id="autorun"> Auto-run</label>
+    <span class="spacer"></span>
+    <button class="btn" id="load">Load files</button>
+    <button class="btn" id="export">Export .love</button>
+    <button class="btn" id="reset">Reset</button>
+    <input type="file" id="filepicker" multiple class="hidden">
+  </header>
+
+  <div class="split">
+    <section class="editor">
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <div class="edit-wrap">
+        <div class="gutter" id="gutter" aria-hidden="true">1</div>
+        <textarea id="code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Source code"></textarea>
+        <div class="asset-note hidden" id="assetnote"></div>
+      </div>
+      <div>
+        <div class="console-head">
+          <span>Output</span>
+          <button id="clearlog">Clear</button>
+        </div>
+        <div id="console" role="log" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <div class="grip" id="grip" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize panels"></div>
+
+    <section class="bench">
+      <div class="stagearea" id="stagearea">
+        <div class="device" id="device">
+          <div class="speaker"></div>
+          <div class="screen" id="screen">
+            <div class="idle" id="idle">Not running<br><span style="letter-spacing:.06em;text-transform:none">Press Run or Ctrl+Enter</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="plate">
+        <label for="preset">Screen</label>
+        <select id="preset"></select>
+        <span class="val" id="dims">390 × 844</span>
+        <span class="sep"></span>
+        <span class="status" id="status" data-state="idle"><span class="led"></span><span id="statustext">Idle</span></span>
+        <span class="sep"></span>
+        <span class="val" id="boottime">—</span>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- Source for the sandboxed runner document. Injected into an iframe on every run. -->
+<script type="text/plain" id="runner-source">
+(function () {
+  var host = window.parent;
+  var canvas = document.getElementById('canvas');
+
+  function post(msg) { try { host.postMessage(msg, '*'); } catch (e) {} }
+
+  function writeFile(Module, name, bytes) {
+    if (typeof Module.FS_createDataFile === 'function') {
+      Module.FS_createDataFile('/', name, bytes, true, true, true);
+    } else if (Module.FS && typeof Module.FS.writeFile === 'function') {
+      Module.FS.writeFile('/' + name, bytes);
+    } else {
+      throw new Error('This love.js build exports neither FS_createDataFile nor FS.');
+    }
+  }
+
+  function boot(msg) {
+    var t0 = performance.now();
+
+    var Module = {
+      canvas: canvas,
+      arguments: ['./game.love'],
+      INITIAL_MEMORY: msg.memory,
+      TOTAL_MEMORY: msg.memory,
+      locateFile: function (p) { return p; },
+      print: function (t) { post({ type: 'log', stream: 'out', text: String(t) }); },
+      printErr: function (t) { post({ type: 'log', stream: 'err', text: String(t) }); },
+      setStatus: function (t) { if (t) post({ type: 'log', stream: 'sys', text: String(t) }); },
+      preRun: [function () {
+        try {
+          writeFile(Module, 'game.love', msg.love);
+        } catch (e) {
+          post({ type: 'fatal', text: 'Could not write game.love into the virtual filesystem. ' + e });
+        }
+      }],
+      onRuntimeInitialized: function () {
+        post({ type: 'running', ms: Math.round(performance.now() - t0) });
+        post({ type: 'caps', pause: typeof Module.pauseMainLoop === 'function' });
+      },
+      onAbort: function (what) { post({ type: 'fatal', text: 'Runtime aborted: ' + what }); }
+    };
+
+    if (msg.wasmModule) {
+      Module.instantiateWasm = function (imports, success) {
+        WebAssembly.instantiate(msg.wasmModule, imports).then(
+          function (instance) { success(instance, msg.wasmModule); },
+          function (e) { post({ type: 'fatal', text: 'WebAssembly.instantiate failed: ' + e }); }
+        );
+        return {};
+      };
+    } else if (msg.wasmBinary) {
+      Module.wasmBinary = msg.wasmBinary;
+    }
+
+    // Non-modularised builds boot off a global Module. Modularised ones ignore
+    // it, but keeping it here gives the parent a handle for pause/resume.
+    window.Module = Module;
+
+    var s = document.createElement('script');
+    if (msg.glueUrl) {
+      s.src = msg.glueUrl;
+      s.onload = function () { start(Module); };
+      s.onerror = function () { post({ type: 'fatal', text: 'Could not load the love.js glue script.' }); };
+      document.body.appendChild(s);
+    } else {
+      // Inline scripts execute on append and never fire onload.
+      s.textContent = msg.glueSource;
+      document.body.appendChild(s);
+      start(Module);
+    }
+    canvas.focus();
+  }
+
+  // love.js is built with MODULARIZE and EXPORT_NAME=Love, so the glue defines a
+  // factory rather than booting itself. Older or forked builds may not, in which
+  // case the glue has already consumed the global Module and there is nothing to do.
+  function start(Module) {
+    var factory = window.Love;
+    if (typeof factory !== 'function') {
+      post({ type: 'log', stream: 'sys', text: 'No Love() factory found; assuming a self-booting glue build.' });
+      return;
+    }
+    try {
+      var ready = factory(Module);
+      if (ready && typeof ready.catch === 'function') {
+        ready.catch(function (e) { post({ type: 'fatal', text: 'Module initialisation rejected: ' + e }); });
+      }
+    } catch (e) {
+      post({ type: 'fatal', text: 'Love(Module) threw: ' + e });
+    }
+  }
+
+  window.addEventListener('message', function (ev) {
+    if (ev.source !== host) return;
+    var m = ev.data;
+    if (!m || typeof m !== 'object') return;
+    if (m.type === 'boot') { boot(m); return; }
+    if (m.type === 'pause' && window.Module && window.Module.pauseMainLoop) window.Module.pauseMainLoop();
+    if (m.type === 'resume' && window.Module && window.Module.resumeMainLoop) window.Module.resumeMainLoop();
+  });
+
+  window.addEventListener('error', function (e) {
+    post({ type: 'log', stream: 'err', text: (e.message || 'Uncaught error') + (e.lineno ? ' (line ' + e.lineno + ')' : '') });
+  });
+
+  document.addEventListener('mousedown', function () { canvas.focus(); });
+
+  // Key events inside the iframe never reach the host document, so forward the
+  // editor shortcuts back up while the game holds focus.
+  document.addEventListener('keydown', function (e) {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    var k = e.key.toLowerCase();
+    if (k === 'enter' || k === 's') { e.preventDefault(); post({ type: 'shortcut', key: k }); }
+  });
+
+  post({ type: 'hello' });
+})();
+</script>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * Inlined runtime hook, left for anyone who wants a single-file build:
+ * replace these two tokens with base64 of love.js and love.wasm. Left
+ * unreplaced (the normal case), the page fetches ./love.js and
+ * ./love.wasm from its own directory instead.
+ * ------------------------------------------------------------------ */
+const INLINE_GLUE_B64 = "__LOVE_JS_B64__";
+const INLINE_WASM_B64 = "__LOVE_WASM_B64__";
+const HAS_INLINE_RUNTIME = INLINE_GLUE_B64.charAt(0) !== "_";
+
+const INITIAL_MEMORY = 33554432;
+const STORAGE_KEY = "love-live-editor/project/v1";
+const MAX_LOG_LINES = 600;
+const TEXT_EXT = /\.(lua|txt|json|md|csv|glsl|frag|vert|vs|fs|cfg|ini|xml|ya?ml)$/i;
+const AUTORUN_DELAY = 900;
+
+const PRESETS = [
+  ["iPhone SE", 375, 667],
+  ["iPhone 14", 390, 844],
+  ["iPhone 14 Pro Max", 430, 932],
+  ["Pixel 7", 412, 915],
+  ["Galaxy S8", 360, 740],
+  ["Square 512", 512, 512],
+  ["Landscape 800×450", 800, 450]
+];
+
+const DEFAULT_MAIN = `-- Tap or click the screen.
+
+local blobs = {}
+local t = 0
+
+function love.load()
+    love.graphics.setBackgroundColor(0.06, 0.05, 0.09)
+    font = love.graphics.newFont(15)
+    love.graphics.setFont(font)
+end
+
+function love.update(dt)
+    t = t + dt
+    for i = #blobs, 1, -1 do
+        local b = blobs[i]
+        b.life = b.life - dt
+        b.r = b.r + dt * 110
+        if b.life <= 0 then table.remove(blobs, i) end
+    end
+end
+
+function love.draw()
+    local w, h = love.graphics.getDimensions()
+
+    for i = 0, 5 do
+        local y = h * 0.5 + math.sin(t * 1.4 + i * 0.7) * h * 0.14
+        love.graphics.setColor(0.91, 0.28, 0.61, 0.14)
+        love.graphics.circle("fill", w * 0.5, y, 90 - i * 12)
+    end
+
+    for _, b in ipairs(blobs) do
+        love.graphics.setColor(0.39, 0.78, 0.65, b.life / 1.2)
+        love.graphics.circle("line", b.x, b.y, b.r)
+    end
+
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print(("%d x %d  |  %.1f fps"):format(w, h, love.timer.getFPS()), 14, 14)
+end
+
+function love.mousepressed(x, y)
+    table.insert(blobs, { x = x, y = y, r = 6, life = 1.2 })
+end
+`;
+
+function defaultConf(w, h) {
+  return `function love.conf(t)
+    t.identity = "love-live-editor"
+    t.window.title = "Preview"
+    t.window.width = ${w}
+    t.window.height = ${h}
+    t.window.resizable = false
+end
+`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Small binary helpers
+ * ------------------------------------------------------------------ */
+function b64ToBytes(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function bytesToB64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s);
+}
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+/* Store-only zip. PhysicsFS reads uncompressed entries, so no deflate needed. */
+function zipStore(entries) {
+  const enc = new TextEncoder();
+  const local = [];
+  const central = [];
+  let offset = 0;
+
+  for (const e of entries) {
+    const name = enc.encode(e.name);
+    const crc = crc32(e.data);
+
+    const lh = new Uint8Array(30 + name.length);
+    const l = new DataView(lh.buffer);
+    l.setUint32(0, 0x04034b50, true);
+    l.setUint16(4, 20, true);
+    l.setUint16(6, 0x0800, true);
+    l.setUint16(8, 0, true);
+    l.setUint16(10, 0, true);
+    l.setUint16(12, 0x0021, true);
+    l.setUint32(14, crc, true);
+    l.setUint32(18, e.data.length, true);
+    l.setUint32(22, e.data.length, true);
+    l.setUint16(26, name.length, true);
+    l.setUint16(28, 0, true);
+    lh.set(name, 30);
+    local.push(lh, e.data);
+
+    const ch = new Uint8Array(46 + name.length);
+    const c = new DataView(ch.buffer);
+    c.setUint32(0, 0x02014b50, true);
+    c.setUint16(4, 20, true);
+    c.setUint16(6, 20, true);
+    c.setUint16(8, 0x0800, true);
+    c.setUint16(10, 0, true);
+    c.setUint16(12, 0, true);
+    c.setUint16(14, 0x0021, true);
+    c.setUint32(16, crc, true);
+    c.setUint32(20, e.data.length, true);
+    c.setUint32(24, e.data.length, true);
+    c.setUint16(28, name.length, true);
+    c.setUint32(38, 0, true);
+    c.setUint32(42, offset, true);
+    ch.set(name, 46);
+    central.push(ch);
+
+    offset += lh.length + e.data.length;
+  }
+
+  const cdSize = central.reduce((n, c) => n + c.length, 0);
+  const eocd = new Uint8Array(22);
+  const v = new DataView(eocd.buffer);
+  v.setUint32(0, 0x06054b50, true);
+  v.setUint16(8, entries.length, true);
+  v.setUint16(10, entries.length, true);
+  v.setUint32(12, cdSize, true);
+  v.setUint32(16, offset, true);
+
+  const out = new Uint8Array(offset + cdSize + 22);
+  let p = 0;
+  for (const chunk of local.concat(central, [eocd])) { out.set(chunk, p); p += chunk.length; }
+  return out;
+}
+
+async function inflateRaw(bytes) {
+  if (typeof DecompressionStream === "undefined") {
+    throw new Error("This browser cannot inflate deflate data. Re-zip the archive with no compression.");
+  }
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function unzip(bytes) {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let eocd = -1;
+  const floor = Math.max(0, bytes.length - 22 - 65535);
+  for (let i = bytes.length - 22; i >= floor; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("Not a zip archive: no end-of-central-directory record.");
+
+  const count = dv.getUint16(eocd + 10, true);
+  if (count === 0xFFFF) throw new Error("Zip64 archives are not supported.");
+
+  let p = dv.getUint32(eocd + 16, true);
+  const dec = new TextDecoder();
+  const out = [];
+
+  for (let i = 0; i < count; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error("Corrupt central directory at entry " + i + ".");
+    const method = dv.getUint16(p + 10, true);
+    const csize = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const cmtLen = dv.getUint16(p + 32, true);
+    const lho = dv.getUint32(p + 42, true);
+    const name = dec.decode(bytes.subarray(p + 46, p + 46 + nameLen));
+
+    const start = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true);
+    const raw = bytes.subarray(start, start + csize);
+
+    if (!name.endsWith("/")) {
+      if (method === 0) out.push({ name, data: raw.slice() });
+      else if (method === 8) out.push({ name, data: await inflateRaw(raw) });
+      else throw new Error("Unsupported compression method " + method + " for " + name + ".");
+    }
+    p += 46 + nameLen + extraLen + cmtLen;
+  }
+  return stripCommonRoot(out);
+}
+
+function stripCommonRoot(entries) {
+  if (entries.some(e => e.name === "main.lua")) return entries;
+  const roots = new Set(entries.map(e => e.name.split("/")[0]));
+  if (roots.size !== 1) return entries;
+  const prefix = [...roots][0] + "/";
+  const stripped = entries.map(e => ({ name: e.name.slice(prefix.length), data: e.data }));
+  return stripped.some(e => e.name === "main.lua") ? stripped : entries;
+}
+
+/* ------------------------------------------------------------------ *
+ * State
+ * ------------------------------------------------------------------ */
+const el = id => document.getElementById(id);
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+
+const state = {
+  files: new Map(),   // name -> { name, binary, text?, bytes? }
+  active: "main.lua",
+  frame: { w: 390, h: 844 },
+  paused: false
+};
+
+let glueUrl = null;
+let glueSource = null;
+let wasmModule = null;
+let wasmBytes = null;
+let runtimeReady = false;
+
+let stage = null;
+let pendingBoot = null;
+let autorunTimer = null;
+let saveTimer = null;
+
+/* ------------------------------------------------------------------ *
+ * Console
+ * ------------------------------------------------------------------ */
+function log(stream, text) {
+  const box = el("console");
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+  const line = document.createElement("div");
+  line.className = stream;
+  line.textContent = text;
+  box.appendChild(line);
+  while (box.childElementCount > MAX_LOG_LINES) box.removeChild(box.firstChild);
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+function setStatus(stateName, label) {
+  el("status").dataset.state = stateName;
+  el("statustext").textContent = label;
+}
+
+/* ------------------------------------------------------------------ *
+ * Runtime loading
+ * ------------------------------------------------------------------ */
+async function loadRuntime() {
+  let glueText;
+
+  if (HAS_INLINE_RUNTIME) {
+    glueText = dec.decode(b64ToBytes(INLINE_GLUE_B64));
+    if (INLINE_WASM_B64.charAt(0) !== "_" && INLINE_WASM_B64.length > 0) {
+      wasmBytes = b64ToBytes(INLINE_WASM_B64);
+    }
+    log("sys", "Runtime loaded from the inlined build.");
+  } else {
+    if (location.protocol === "file:") {
+      throw new Error("This copy has no inlined runtime, and fetch() cannot read love.js over file://. Serve the folder over HTTP instead.");
+    }
+    const res = await fetch("love.js");
+    if (!res.ok) throw new Error("GET love.js returned HTTP " + res.status + ". Put love.js and love.wasm next to this page.");
+    glueText = await res.text();
+    const wres = await fetch("love.wasm").catch(() => null);
+    if (wres && wres.ok) wasmBytes = new Uint8Array(await wres.arrayBuffer());
+    log("sys", "Runtime loaded from ./love.js next to this page.");
+  }
+
+  if (/\bPThread\b/.test(glueText)) {
+    log("err", "This love.js build uses pthreads. It needs COOP/COEP headers and will not boot without them. Rebuild with: love.js game.love out -c");
+  }
+
+  glueSource = glueText;
+  if (location.protocol !== "file:") {
+    glueUrl = URL.createObjectURL(new Blob([glueText], { type: "text/javascript" }));
+  }
+
+  if (wasmBytes) {
+    try {
+      wasmModule = await WebAssembly.compile(wasmBytes);
+    } catch (e) {
+      wasmModule = null;
+      log("err", "Precompiling the wasm module failed, falling back to per-run compilation. " + e);
+    }
+  }
+
+  runtimeReady = true;
+  el("run").disabled = false;
+}
+
+/* ------------------------------------------------------------------ *
+ * Running
+ * ------------------------------------------------------------------ */
+function runnerHtml() {
+  const src = el("runner-source").textContent;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
+body{display:flex;align-items:center;justify-content:center}
+canvas{display:block;background:#000;outline:none;
+  width:auto!important;height:auto!important;max-width:100%!important;max-height:100%!important}
+</style></head><body><canvas id="canvas" tabindex="0"></canvas><scr` +
+`ipt>${src}</scr` + `ipt></body></html>`;
+}
+
+function buildLove() {
+  syncActiveFile();
+  const entries = [];
+  for (const f of state.files.values()) {
+    entries.push({ name: f.name, data: f.binary ? f.bytes : enc.encode(f.text) });
+  }
+  return zipStore(entries);
+}
+
+function run() {
+  if (!runtimeReady) { log("err", "The LÖVE runtime is still loading."); return; }
+  if (!state.files.has("main.lua")) { log("err", "No main.lua in the project. LÖVE will not start without it."); return; }
+
+  stop(true);
+  el("console").replaceChildren();
+  saveProject();
+
+  setStatus("booting", "Booting");
+  el("boottime").textContent = "—";
+  el("idle").classList.add("hidden");
+
+  pendingBoot = buildLove();
+
+  const frame = document.createElement("iframe");
+  frame.title = "Game preview";
+  frame.srcdoc = runnerHtml();
+  el("screen").appendChild(frame);
+  stage = frame;
+
+  el("stop").disabled = false;
+  el("run").textContent = "Restart";
+}
+
+function stop(quiet) {
+  if (stage) { stage.remove(); stage = null; }
+  pendingBoot = null;
+  state.paused = false;
+  el("stop").disabled = true;
+  el("pause").disabled = true;
+  el("pause").textContent = "Pause";
+  el("run").textContent = "Run";
+  el("idle").classList.remove("hidden");
+  if (!quiet) { setStatus("idle", "Idle"); el("boottime").textContent = "—"; }
+}
+
+function togglePause() {
+  if (!stage) return;
+  state.paused = !state.paused;
+  stage.contentWindow.postMessage({ type: state.paused ? "pause" : "resume" }, "*");
+  el("pause").textContent = state.paused ? "Resume" : "Pause";
+  setStatus(state.paused ? "paused" : "running", state.paused ? "Paused" : "Running");
+}
+
+window.addEventListener("message", ev => {
+  if (!stage || ev.source !== stage.contentWindow) return;
+  const m = ev.data;
+  if (!m || typeof m !== "object") return;
+
+  switch (m.type) {
+    case "hello": {
+      const payload = {
+        type: "boot",
+        love: pendingBoot,
+        memory: INITIAL_MEMORY,
+        glueUrl: glueUrl,
+        glueSource: glueUrl ? null : glueSource
+      };
+      if (wasmModule) payload.wasmModule = wasmModule;
+      else if (wasmBytes) payload.wasmBinary = wasmBytes;
+
+      try {
+        stage.contentWindow.postMessage(payload, "*");
+      } catch (e) {
+        delete payload.wasmModule;
+        if (wasmBytes) payload.wasmBinary = wasmBytes;
+        stage.contentWindow.postMessage(payload, "*");
+      }
+      pendingBoot = null;
+      break;
+    }
+    case "running":
+      setStatus("running", "Running");
+      el("boottime").textContent = "boot " + m.ms + " ms";
+      stage.contentWindow.focus();
+      break;
+    case "caps":
+      el("pause").disabled = !m.pause;
+      if (!m.pause) el("pause").title = "This love.js build does not export pauseMainLoop.";
+      break;
+    case "log":
+      log(m.stream, m.text);
+      if (m.stream === "err") setStatus("error", "Error");
+      break;
+    case "shortcut":
+      if (m.key === "s") saveProject();
+      run();
+      break;
+    case "fatal":
+      log("fatal", m.text);
+      setStatus("error", "Error");
+      break;
+  }
+});
+
+/* ------------------------------------------------------------------ *
+ * Files and tabs
+ * ------------------------------------------------------------------ */
+let editorLoaded = false;
+
+/* The textarea is empty until a file is loaded into it. Without this guard the
+   first sync would overwrite that file's real contents with an empty string. */
+function syncActiveFile() {
+  if (!editorLoaded) return;
+  const f = state.files.get(state.active);
+  if (f && !f.binary) f.text = el("code").value;
+}
+
+function selectFile(name) {
+  syncActiveFile();
+  state.active = name;
+  const f = state.files.get(name);
+  const code = el("code");
+  const note = el("assetnote");
+
+  if (f.binary) {
+    editorLoaded = false;
+    code.classList.add("hidden");
+    note.classList.remove("hidden");
+    note.innerHTML = "";
+    const strong = document.createElement("strong");
+    strong.textContent = f.name;
+    note.append(strong, document.createTextNode(`Binary asset, ${f.bytes.length.toLocaleString()} bytes.`),
+      document.createTextNode("Packed into the .love as-is."));
+  } else {
+    note.classList.add("hidden");
+    code.classList.remove("hidden");
+    code.value = f.text;
+    code.scrollTop = 0;
+    editorLoaded = true;
+    updateGutter();
+  }
+  renderTabs();
+}
+
+function renderTabs() {
+  const bar = el("tabs");
+  bar.replaceChildren();
+
+  for (const f of state.files.values()) {
+    const tab = document.createElement("div");
+    tab.className = "tab" + (f.binary ? " asset" : "");
+    tab.setAttribute("role", "tab");
+    tab.tabIndex = 0;
+    tab.setAttribute("aria-selected", String(f.name === state.active));
+    tab.append(document.createTextNode(f.name));
+
+    if (f.name !== "main.lua") {
+      const x = document.createElement("button");
+      x.className = "x";
+      x.textContent = "×";
+      x.setAttribute("aria-label", "Remove " + f.name);
+      x.title = "Remove " + f.name;
+      x.addEventListener("click", ev => {
+        ev.stopPropagation();
+        state.files.delete(f.name);
+        if (state.active === f.name) state.active = "main.lua";
+        selectFile(state.active);
+        saveProject();
+      });
+      tab.append(x);
+    }
+
+    tab.addEventListener("click", () => selectFile(f.name));
+    tab.addEventListener("keydown", ev => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); selectFile(f.name); }
+    });
+    bar.appendChild(tab);
+  }
+
+  const add = document.createElement("button");
+  add.className = "tab tab-add";
+  add.textContent = "+";
+  add.title = "New file";
+  add.addEventListener("click", newFile);
+  bar.appendChild(add);
+}
+
+function newFile() {
+  const name = prompt("File name (relative to the project root):", "player.lua");
+  if (!name) return;
+  const clean = name.trim().replace(/^\/+/, "");
+  if (!clean) return;
+  if (state.files.has(clean)) { selectFile(clean); return; }
+  state.files.set(clean, { name: clean, binary: false, text: "" });
+  selectFile(clean);
+  saveProject();
+}
+
+async function addUploads(fileList) {
+  for (const file of fileList) {
+    try {
+      if (/\.(love|zip)$/i.test(file.name)) {
+        const entries = await unzip(new Uint8Array(await file.arrayBuffer()));
+        state.files.clear();
+        for (const e of entries) {
+          if (TEXT_EXT.test(e.name)) state.files.set(e.name, { name: e.name, binary: false, text: dec.decode(e.data) });
+          else state.files.set(e.name, { name: e.name, binary: true, bytes: e.data });
+        }
+        log("sys", `Imported ${entries.length} file(s) from ${file.name}.`);
+      } else if (TEXT_EXT.test(file.name)) {
+        state.files.set(file.name, { name: file.name, binary: false, text: await file.text() });
+        log("sys", "Loaded " + file.name + ".");
+      } else {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        state.files.set(file.name, { name: file.name, binary: true, bytes });
+        log("sys", `Loaded ${file.name} (${bytes.length.toLocaleString()} bytes).`);
+      }
+    } catch (e) {
+      log("err", `Could not load ${file.name}: ${e.message}`);
+    }
+  }
+
+  if (!state.files.has("main.lua")) log("err", "The project has no main.lua. Add one before running.");
+  if (!state.files.has("conf.lua")) {
+    log("sys", "No conf.lua in this project, so the Screen preset only resizes the preview frame. Add a conf.lua to set the real window size.");
+  }
+  state.active = state.files.has(state.active) ? state.active : (state.files.has("main.lua") ? "main.lua" : [...state.files.keys()][0]);
+  selectFile(state.active);
+  saveProject();
+}
+
+function exportLove() {
+  const blob = new Blob([buildLove()], { type: "application/octet-stream" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "game.love";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* ------------------------------------------------------------------ *
+ * Persistence
+ * ------------------------------------------------------------------ */
+function saveProject() {
+  syncActiveFile();
+  const payload = {
+    active: state.active,
+    frame: state.frame,
+    files: [...state.files.values()].map(f =>
+      f.binary ? { name: f.name, binary: true, b64: bytesToB64(f.bytes) } : { name: f.name, binary: false, text: f.text })
+  };
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  } catch (e) {
+    log("err", "Could not autosave to localStorage (usually the 5 MB quota). Export the .love to keep your work.");
+  }
+}
+
+function loadProject() {
+  let raw = null;
+  try { raw = localStorage.getItem(STORAGE_KEY); } catch (e) { raw = null; }
+  if (!raw) return false;
+  try {
+    const p = JSON.parse(raw);
+    state.files.clear();
+    for (const f of p.files) {
+      if (f.binary) state.files.set(f.name, { name: f.name, binary: true, bytes: b64ToBytes(f.b64) });
+      else state.files.set(f.name, { name: f.name, binary: false, text: f.text });
+    }
+    if (p.frame) state.frame = p.frame;
+    state.active = state.files.has(p.active) ? p.active : "main.lua";
+    return state.files.size > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+function resetProject() {
+  if (!confirm("Replace the current project with the starter example?")) return;
+  state.files.clear();
+  state.files.set("main.lua", { name: "main.lua", binary: false, text: DEFAULT_MAIN });
+  state.files.set("conf.lua", { name: "conf.lua", binary: false, text: defaultConf(state.frame.w, state.frame.h) });
+  state.active = "main.lua";
+  selectFile("main.lua");
+  saveProject();
+  log("sys", "Project reset to the starter example.");
+}
+
+/* ------------------------------------------------------------------ *
+ * Editor chrome
+ * ------------------------------------------------------------------ */
+function updateGutter() {
+  const code = el("code");
+  const lines = code.value.split("\n").length;
+  const gutter = el("gutter");
+  if (gutter.childElementCount !== lines) {
+    gutter.replaceChildren();
+    const frag = document.createDocumentFragment();
+    for (let i = 1; i <= lines; i++) {
+      const d = document.createElement("div");
+      d.textContent = i;
+      frag.appendChild(d);
+    }
+    gutter.appendChild(frag);
+  }
+  gutter.scrollTop = code.scrollTop;
+}
+
+function handleTabKey(ev) {
+  const code = el("code");
+  const { selectionStart: a, selectionEnd: b, value } = code;
+  const lineStart = value.lastIndexOf("\n", a - 1) + 1;
+
+  if (ev.shiftKey) {
+    const before = value.slice(lineStart, a);
+    const cut = before.startsWith("    ") ? 4 : (before.match(/^ {1,3}/) || [""])[0].length;
+    if (!cut) return;
+    code.value = value.slice(0, lineStart) + value.slice(lineStart + cut);
+    code.selectionStart = code.selectionEnd = a - cut;
+  } else {
+    code.value = value.slice(0, a) + "    " + value.slice(b);
+    code.selectionStart = code.selectionEnd = a + 4;
+  }
+}
+
+function onEdit() {
+  updateGutter();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveProject, 400);
+  if (el("autorun").checked) {
+    clearTimeout(autorunTimer);
+    autorunTimer = setTimeout(run, AUTORUN_DELAY);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Preview sizing
+ * ------------------------------------------------------------------ */
+function fitDevice() {
+  const area = el("stagearea").getBoundingClientRect();
+  const device = el("device");
+  const w = device.offsetWidth;
+  const h = device.offsetHeight;
+  if (!w || !h) return;
+  const k = Math.min(1, (area.width - 40) / w, (area.height - 40) / h);
+  document.documentElement.style.setProperty("--k", Math.max(0.15, k).toFixed(4));
+}
+
+function applyFrame(w, h) {
+  state.frame = { w, h };
+  const screen = el("screen");
+  screen.style.width = w + "px";
+  screen.style.height = h + "px";
+  el("dims").textContent = `${w} × ${h}`;
+
+  const conf = state.files.get("conf.lua");
+  if (conf && !conf.binary) {
+    syncActiveFile();
+    conf.text = conf.text
+      .replace(/(t\.window\.width\s*=\s*)\d+/, "$1" + w)
+      .replace(/(t\.window\.height\s*=\s*)\d+/, "$1" + h);
+    if (state.active === "conf.lua") el("code").value = conf.text;
+  }
+
+  fitDevice();
+  saveProject();
+}
+
+/* ------------------------------------------------------------------ *
+ * Split grip
+ * ------------------------------------------------------------------ */
+function initGrip() {
+  const grip = el("grip");
+  let dragging = false;
+
+  const move = ev => {
+    if (!dragging) return;
+    const min = 300;
+    const max = window.innerWidth - 340;
+    const x = Math.min(max, Math.max(min, ev.clientX));
+    document.documentElement.style.setProperty("--split", x + "px");
+    fitDevice();
+  };
+
+  grip.addEventListener("pointerdown", ev => {
+    dragging = true;
+    grip.classList.add("dragging");
+    grip.setPointerCapture(ev.pointerId);
+  });
+  grip.addEventListener("pointermove", move);
+  grip.addEventListener("pointerup", ev => {
+    dragging = false;
+    grip.classList.remove("dragging");
+    grip.releasePointerCapture(ev.pointerId);
+  });
+  grip.addEventListener("keydown", ev => {
+    const step = ev.shiftKey ? 60 : 20;
+    const cur = el("grip").getBoundingClientRect().left;
+    if (ev.key === "ArrowLeft") { document.documentElement.style.setProperty("--split", (cur - step) + "px"); fitDevice(); }
+    if (ev.key === "ArrowRight") { document.documentElement.style.setProperty("--split", (cur + step) + "px"); fitDevice(); }
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Wiring
+ * ------------------------------------------------------------------ */
+function init() {
+  const select = el("preset");
+  for (const [label, w, h] of PRESETS) {
+    const opt = document.createElement("option");
+    opt.value = w + "x" + h;
+    opt.textContent = `${label} — ${w}×${h}`;
+    select.appendChild(opt);
+  }
+
+  if (!loadProject()) {
+    state.files.set("main.lua", { name: "main.lua", binary: false, text: DEFAULT_MAIN });
+    state.files.set("conf.lua", { name: "conf.lua", binary: false, text: defaultConf(state.frame.w, state.frame.h) });
+  }
+
+  selectFile(state.active);
+
+  select.value = state.frame.w + "x" + state.frame.h;
+  if (select.selectedIndex < 0) select.selectedIndex = 1;
+  const [pw, ph] = select.value.split("x").map(Number);
+  applyFrame(pw, ph);
+
+  el("code").addEventListener("input", onEdit);
+  el("code").addEventListener("scroll", () => { el("gutter").scrollTop = el("code").scrollTop; });
+  el("code").addEventListener("keydown", ev => {
+    if (ev.key === "Tab") { ev.preventDefault(); handleTabKey(ev); onEdit(); }
+  });
+
+  document.addEventListener("keydown", ev => {
+    const mod = ev.metaKey || ev.ctrlKey;
+    if (mod && ev.key === "Enter") { ev.preventDefault(); run(); }
+    if (mod && ev.key.toLowerCase() === "s") { ev.preventDefault(); saveProject(); run(); }
+  });
+
+  el("run").addEventListener("click", run);
+  el("stop").addEventListener("click", () => stop(false));
+  el("pause").addEventListener("click", togglePause);
+  el("reset").addEventListener("click", resetProject);
+  el("export").addEventListener("click", exportLove);
+  el("clearlog").addEventListener("click", () => el("console").replaceChildren());
+  el("load").addEventListener("click", () => el("filepicker").click());
+  el("filepicker").addEventListener("change", ev => {
+    addUploads([...ev.target.files]);
+    ev.target.value = "";
+  });
+  select.addEventListener("change", () => {
+    const [w, h] = select.value.split("x").map(Number);
+    applyFrame(w, h);
+  });
+
+  initGrip();
+  new ResizeObserver(fitDevice).observe(el("stagearea"));
+  window.addEventListener("resize", fitDevice);
+  window.addEventListener("beforeunload", saveProject);
+
+  el("run").disabled = true;
+  setStatus("idle", "Loading runtime");
+
+  loadRuntime().then(() => {
+    setStatus("idle", "Idle");
+    log("sys", "Ready. Ctrl+Enter runs, Ctrl+S saves and runs.");
+  }).catch(err => {
+    setStatus("error", "No runtime");
+    log("fatal", String(err.message || err));
+  });
+}
+
+init();
+</script>
+</body>
+</html>
