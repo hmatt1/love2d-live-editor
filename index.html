@@ -1128,6 +1128,10 @@ function applyFrame(w, h) {
 
   fitDevice();
   saveProject();
+
+  // conf.lua's window size is only read at boot, so a resize while the game
+  // is running would otherwise leave it drawing at the old resolution.
+  if (stage) run();
 }
 
 /* ------------------------------------------------------------------ *
