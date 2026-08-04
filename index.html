@@ -283,6 +283,39 @@ button, select, input { font: inherit; color: inherit; }
     color: var(--pink);
     box-shadow: inset 0 2px 0 var(--pink);
   }
+
+  /* badge dot on Editor tab */
+  .console-badge {
+    display: none;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--amber);
+    margin-left: 5px;
+    vertical-align: middle;
+  }
+  body.has-log-badge .console-badge { display: inline-block; }
+
+  /* last-line strip above tab bar */
+  .console-strip {
+    display: none;
+    position: fixed;
+    bottom: calc(50px + env(safe-area-inset-bottom));
+    left: 0; right: 0;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: var(--ink-2);
+    border-top: 1px solid var(--ink-3);
+    cursor: pointer;
+    z-index: 99;
+  }
+  body.tab-game.has-log-badge .console-strip { display: block; }
+  body.tab-game.has-log-badge.strip-err   .console-strip { color: var(--amber); }
+  body.tab-game.has-log-badge.strip-fatal .console-strip { color: var(--pink); }
+  body.tab-game.has-log-badge:not(.strip-err):not(.strip-fatal) .console-strip { color: var(--txt-dim); }
 }
 </style>
 </head>
@@ -347,9 +380,10 @@ button, select, input { font: inherit; color: inherit; }
     </section>
   </div>
   <nav class="mob-tabs" role="tablist" aria-label="Panel switcher">
-    <button class="mob-tab" id="tab-editor" role="tab" aria-selected="true">✏ Editor</button>
+    <button class="mob-tab" id="tab-editor" role="tab" aria-selected="true">✏ Editor<span class="console-badge" id="console-badge"></span></button>
     <button class="mob-tab" id="tab-game"   role="tab" aria-selected="false">▶ Game</button>
   </nav>
+  <div class="console-strip" id="console-strip" role="status" aria-live="polite"></div>
 </div>
 
 <!-- Source for the sandboxed runner document. Injected into an iframe on every run. -->
@@ -4336,6 +4370,12 @@ function log(stream, text) {
   box.appendChild(line);
   while (box.childElementCount > MAX_LOG_LINES) box.removeChild(box.firstChild);
   if (atBottom) box.scrollTop = box.scrollHeight;
+  if (document.body.classList.contains("tab-game") && window.innerWidth <= 700) {
+    document.body.classList.add("has-log-badge");
+    document.body.classList.toggle("strip-err",   stream === "err");
+    document.body.classList.toggle("strip-fatal", stream === "fatal");
+    el("console-strip").textContent = text;
+  }
 }
 
 function setStatus(stateName, label) {
@@ -5098,7 +5138,10 @@ function init() {
   el("export").addEventListener("click", exportLove);
   el("exporthtml").addEventListener("click", exportHtml);
   el("exportzip").addEventListener("click", exportZip);
-  el("clearlog").addEventListener("click", () => el("console").replaceChildren());
+  el("clearlog").addEventListener("click", () => {
+    el("console").replaceChildren();
+    document.body.classList.remove("has-log-badge", "strip-err", "strip-fatal");
+  });
   el("load").addEventListener("click", () => el("filepicker").click());
   el("filepicker").addEventListener("change", ev => {
     addUploads([...ev.target.files]);
@@ -5117,11 +5160,13 @@ function init() {
     document.body.classList.toggle("tab-game",   tab === "game");
     el("tab-editor").setAttribute("aria-selected", String(tab === "editor"));
     el("tab-game").setAttribute("aria-selected",   String(tab === "game"));
+    if (tab === "editor") document.body.classList.remove("has-log-badge", "strip-err", "strip-fatal");
     if (tab === "game") requestAnimationFrame(() => requestAnimationFrame(fitDevice));
   }
 
   el("tab-editor").addEventListener("click", () => switchTab("editor"));
   el("tab-game").addEventListener("click",   () => switchTab("game"));
+  el("console-strip").addEventListener("click", () => switchTab("editor"));
 
   function initSwipe() {
     const area = document.querySelector(".split");
