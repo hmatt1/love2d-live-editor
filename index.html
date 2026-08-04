@@ -45,7 +45,9 @@ button, select, input { font: inherit; color: inherit; }
   padding: 0 12px;
   background: var(--ink-2);
   border-bottom: 1px solid var(--ink-3);
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
 }
+.topbar > * { flex-shrink: 0; }
 .mark {
   display: flex; align-items: center; gap: 7px;
   margin-right: 6px; padding-right: 12px;
@@ -238,6 +240,14 @@ button, select, input { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) { .status[data-state="booting"] .led { animation: none; } }
 
 .hidden { display: none !important; }
+
+/* ---------- mobile: stack editor above preview ---------- */
+@media (max-width: 700px) {
+  .split { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .grip { display: none; }
+
+  #console { height: 100px; }
+}
 </style>
 </head>
 
