@@ -53,9 +53,13 @@ console.log("PASS  gutter rendered " + lines + " line numbers");
 
 /* ---- 3. tabs render, one per file, main.lua not closable ---- */
 const tabs = [...$(w, "tabs").querySelectorAll(".tab:not(.tab-add)")];
-assert.deepStrictEqual(tabs.map(t => t.textContent.replace("×", "")), ["main.lua", "conf.lua"]);
+assert.deepStrictEqual(tabs.map(t => t.textContent.replace("×", "")), [
+  "main.lua", "conf.lua", "clay.lua", "foley.lua", "ui_widgets.lua",
+  "demo_layout.lua", "demo_text.lua", "demo_style.lua", "demo_scroll.lua",
+  "demo_interact.lua", "demo_floating.lua", "demo_soundboard.lua", "demo_sounddesign.lua",
+]);
 assert.strictEqual(tabs[0].querySelector(".x"), null, "main.lua must not be removable");
-assert.ok(tabs[1].querySelector(".x"), "conf.lua should be removable");
+for (const tab of tabs.slice(1)) assert.ok(tab.querySelector(".x"), tab.textContent + " should be removable");
 assert.strictEqual(w.document.querySelector(".tab .x button, .tab button button"), null,
   "no nested buttons (invalid HTML)");
 console.log("PASS  tab bar markup");
