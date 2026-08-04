@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>LÖVE live editor</title>
 <style>
 :root {
@@ -246,7 +246,7 @@ button, select, input { font: inherit; color: inherit; }
 
 /* ---------- mobile: one panel at a time ---------- */
 @media (max-width: 700px) {
-  #app { grid-template-rows: 46px 1fr 50px; }
+  #app { grid-template-rows: 46px 1fr calc(50px + env(safe-area-inset-bottom)); }
   .split { grid-template-columns: 1fr; grid-template-rows: 1fr; }
   .editor, .bench { grid-column: 1; grid-row: 1; }
   body.tab-editor .editor { display: grid; }
@@ -260,6 +260,7 @@ button, select, input { font: inherit; color: inherit; }
     display: flex;
     background: var(--ink-2);
     border-top: 1px solid var(--ink-3);
+    padding-bottom: env(safe-area-inset-bottom);
   }
   .mob-tab {
     flex: 1;
