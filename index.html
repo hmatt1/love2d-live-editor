@@ -255,6 +255,8 @@ button, select, input { font: inherit; color: inherit; }
     <span class="spacer"></span>
     <button class="btn" id="load">Load files</button>
     <button class="btn" id="export">Export .love</button>
+    <button class="btn" id="exporthtml" disabled>Export .html</button>
+    <button class="btn" id="exportzip" disabled>Download zip</button>
     <button class="btn" id="reset">Reset</button>
     <input type="file" id="filepicker" multiple class="hidden">
   </header>
@@ -746,6 +748,8 @@ async function loadRuntime() {
 
   runtimeReady = true;
   el("run").disabled = false;
+  el("exporthtml").disabled = false;
+  el("exportzip").disabled = false;
 }
 
 /* ------------------------------------------------------------------ *
@@ -998,6 +1002,180 @@ function exportLove() {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "game.love";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* Shared boot logic for exported runner pages (self-booting variants of the
+   runner-source script above: no host/postMessage handshake). `loadDataJs` is
+   a snippet that resolves the glue text, wasm bytes and .love bytes however
+   the particular export gets them (inlined base64 vs. fetch()) and then
+   calls boot(glueText, wasmBytes, loveBytes). */
+function bootScript(loadDataJs) {
+  return `
+(function () {
+  var MEMORY = ${INITIAL_MEMORY};
+  var canvas = document.getElementById('canvas');
+  var errBox = document.getElementById('err');
+  function showError(t) {
+    errBox.style.display = 'block';
+    errBox.textContent += (errBox.textContent ? '\\n' : '') + t;
+  }
+
+  function writeFile(Module, name, bytes) {
+    if (typeof Module.FS_createDataFile === 'function') {
+      Module.FS_createDataFile('/', name, bytes, true, true, true);
+    } else if (Module.FS && typeof Module.FS.writeFile === 'function') {
+      Module.FS.writeFile('/' + name, bytes);
+    } else {
+      throw new Error('This love.js build exports neither FS_createDataFile nor FS.');
+    }
+  }
+
+  function boot(glueText, wasmBytes, loveBytes) {
+    var Module = {
+      canvas: canvas,
+      arguments: ['./game.love'],
+      INITIAL_MEMORY: MEMORY,
+      TOTAL_MEMORY: MEMORY,
+      print: function (t) { console.log(t); },
+      printErr: function (t) { console.error(t); showError(String(t)); },
+      setStatus: function (t) { if (t) console.log(t); },
+      preRun: [function () {
+        try {
+          writeFile(Module, 'game.love', loveBytes);
+        } catch (e) {
+          showError('Could not write game.love into the virtual filesystem. ' + e);
+        }
+      }],
+      onRuntimeInitialized: function () { canvas.focus(); },
+      onAbort: function (what) { showError('Runtime aborted: ' + what); },
+      instantiateWasm: function (imports, success) {
+        WebAssembly.instantiate(wasmBytes, imports).then(
+          function (result) { success(result.instance, result.module); },
+          function (e) { showError('WebAssembly.instantiate failed: ' + e); }
+        );
+        return {};
+      }
+    };
+    window.Module = Module;
+
+    var s = document.createElement('script');
+    s.textContent = glueText;
+    document.body.appendChild(s);
+
+    var factory = window.Love;
+    if (typeof factory === 'function') {
+      try {
+        var ready = factory(Module);
+        if (ready && typeof ready.catch === 'function') {
+          ready.catch(function (e) { showError('Module initialisation rejected: ' + e); });
+        }
+      } catch (e) {
+        showError('Love(Module) threw: ' + e);
+      }
+    } else {
+      console.log('No Love() factory found; assuming a self-booting glue build.');
+    }
+    canvas.focus();
+  }
+
+  ${loadDataJs}
+
+  document.addEventListener('mousedown', function () { canvas.focus(); });
+  window.addEventListener('error', function (e) {
+    showError((e.message || 'Uncaught error') + (e.lineno ? ' (line ' + e.lineno + ')' : ''));
+  });
+})();
+`;
+}
+
+/* Wraps a boot script (from bootScript()) in the canvas/error-panel page shell
+   shared by every export flavour. */
+function runnerPageHtml(bootJs) {
+  return `<!doctype html><html><head><meta charset="utf-8">
+<title>LÖVE game</title>
+<style>
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
+body{display:flex;align-items:center;justify-content:center}
+canvas{display:block;background:#000;outline:none;
+  width:auto!important;height:auto!important;max-width:100%!important;max-height:100%!important}
+#err{position:fixed;left:12px;right:12px;bottom:12px;max-height:40%;overflow:auto;display:none;
+  padding:10px 12px;border-radius:6px;background:rgba(20,10,15,.92);color:#f2a6c8;
+  font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;z-index:1}
+</style></head><body>
+<canvas id="canvas" tabindex="0"></canvas>
+<div id="err"></div>
+<scr` + `ipt>${bootJs}</scr` + `ipt>
+</body></html>`;
+}
+
+/* Everything (love.js glue, love.wasm, the .love archive) is inlined as
+   base64 so the file runs standalone, including over file://. */
+function standaloneHtml({ loveB64, glueB64, wasmB64 }) {
+  const loadDataJs = `function b64ToBytes(b64) {
+    var bin = atob(b64);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  var glueText = new TextDecoder().decode(b64ToBytes("${glueB64}"));
+  var wasmBytes = b64ToBytes("${wasmB64}");
+  var loveBytes = b64ToBytes("${loveB64}");
+  boot(glueText, wasmBytes, loveBytes);`;
+
+  return runnerPageHtml(bootScript(loadDataJs));
+}
+
+/* Fetches love.js, love.wasm and game.love as sibling files instead of
+   inlining them, for the "download zip" export. Needs to be served over
+   HTTP -- fetch() can't read local files over file://. */
+function zipIndexHtml() {
+  const loadDataJs = `Promise.all([
+    fetch('love.js').then(function (r) { if (!r.ok) throw new Error('GET love.js failed: HTTP ' + r.status); return r.text(); }),
+    fetch('love.wasm').then(function (r) { if (!r.ok) throw new Error('GET love.wasm failed: HTTP ' + r.status); return r.arrayBuffer(); }),
+    fetch('game.love').then(function (r) { if (!r.ok) throw new Error('GET game.love failed: HTTP ' + r.status); return r.arrayBuffer(); })
+  ]).then(function (results) {
+    boot(results[0], new Uint8Array(results[1]), new Uint8Array(results[2]));
+  }).catch(function (e) { showError(String(e.message || e)); });`;
+
+  return runnerPageHtml(bootScript(loadDataJs));
+}
+
+function exportHtml() {
+  if (!runtimeReady) { log("err", "The LÖVE runtime is still loading."); return; }
+  if (!state.files.has("main.lua")) { log("err", "No main.lua in the project. LÖVE will not start without it."); return; }
+  if (!wasmBytes) { log("err", "No wasm binary loaded; can't build a self-contained export."); return; }
+
+  const loveB64 = bytesToB64(buildLove());
+  const glueB64 = bytesToB64(enc.encode(glueSource));
+  const wasmB64 = bytesToB64(wasmBytes);
+
+  const html = standaloneHtml({ loveB64, glueB64, wasmB64 });
+  const blob = new Blob([html], { type: "text/html" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "index.html";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+function exportZip() {
+  if (!runtimeReady) { log("err", "The LÖVE runtime is still loading."); return; }
+  if (!state.files.has("main.lua")) { log("err", "No main.lua in the project. LÖVE will not start without it."); return; }
+  if (!wasmBytes) { log("err", "No wasm binary loaded; can't build a static export."); return; }
+
+  const entries = [
+    { name: "index.html", data: enc.encode(zipIndexHtml()) },
+    { name: "love.js", data: enc.encode(glueSource) },
+    { name: "love.wasm", data: wasmBytes },
+    { name: "game.love", data: buildLove() }
+  ];
+
+  const blob = new Blob([zipStore(entries)], { type: "application/zip" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "game.zip";
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
@@ -1268,6 +1446,8 @@ function init() {
   el("pause").addEventListener("click", togglePause);
   el("reset").addEventListener("click", resetProject);
   el("export").addEventListener("click", exportLove);
+  el("exporthtml").addEventListener("click", exportHtml);
+  el("exportzip").addEventListener("click", exportZip);
   el("clearlog").addEventListener("click", () => el("console").replaceChildren());
   el("load").addEventListener("click", () => el("filepicker").click());
   el("filepicker").addEventListener("change", ev => {
