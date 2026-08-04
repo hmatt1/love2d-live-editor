@@ -246,8 +246,8 @@ button, select, input { font: inherit; color: inherit; }
 
 /* ---------- mobile: one panel at a time ---------- */
 @media (max-width: 700px) {
-  #app { grid-template-rows: 46px 1fr calc(50px + env(safe-area-inset-bottom)); }
-  .split { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  #app { grid-template-rows: 46px 1fr; }
+  .split { grid-template-columns: 1fr; grid-template-rows: 1fr; padding-bottom: calc(50px + env(safe-area-inset-bottom)); }
   .editor, .bench { grid-column: 1; grid-row: 1; }
   body.tab-editor .editor { display: grid; }
   body.tab-editor .bench  { display: none; }
@@ -258,6 +258,9 @@ button, select, input { font: inherit; color: inherit; }
 
   .mob-tabs {
     display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 100;
     background: var(--ink-2);
     border-top: 1px solid var(--ink-3);
     padding-bottom: env(safe-area-inset-bottom);
