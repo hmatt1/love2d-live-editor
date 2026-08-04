@@ -88,23 +88,23 @@ function M.declare()
     local spec = Foley.getSpec(state.cue)
     local layer = spec[1]
 
-    Clay.element({ id = "sounddesign:waverow", layout = { childGap = 20, sizing = { width = "grow" } }, clip = { horizontal = true } }, function()
+    Clay.element({ id = "sounddesign:waverow", layout = { direction = "column", childGap = 10, sizing = { width = "grow" } } }, function()
       Clay.element({
         id = "sounddesign:wave",
-        layout = { sizing = { width = Clay.sizing.fixed(280), height = Clay.sizing.fixed(120) } },
+        layout = { sizing = { width = "grow", height = Clay.sizing.fixed(120) } },
         backgroundColor = Widgets.palette.panel2,
         cornerRadius = 8,
         custom = { points = waveform },
       })
 
-      Clay.element({ layout = { direction = "column", childGap = 8, sizing = { width = "grow" } } }, function()
+      Clay.element({ layout = { childGap = 10, sizing = { width = "grow" }, childAlignment = { y = "center" } }, clip = { horizontal = true } }, function()
         Widgets.button({
           id = "sounddesign:play", label = "Play " .. state.cue, clickSound = false,
           onClick = function() Foley.play(state.cue) end,
         })
         Widgets.button({
           id = "sounddesign:reset",
-          label = Foley.isOverridden(state.cue) and "Reset to default (isOverridden)" or "(using built-in default)",
+          label = Foley.isOverridden(state.cue) and "Reset to default" or "(using built-in default)",
           clickSound = false,
           onClick = function() Foley.resetSpec(state.cue); waveformDirty = true end,
         })

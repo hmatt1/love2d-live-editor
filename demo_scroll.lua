@@ -15,7 +15,7 @@ function M.declare()
   Widgets.panel({
     layout = { direction = "column", childGap = 14, padding = 16, sizing = { width = "grow", height = "grow" } },
   }, function()
-    Clay.text("Scroll -- clip, getScrollState, scrollToTop/Bottom/End, getScrollOffset",
+    Clay.text("Scroll -- clip, getScrollState, scrollTo helpers, getScrollOffset",
       { fontId = "title", color = Widgets.palette.text })
 
     -- Stacked (not side-by-side) so both lists' own clip containers stay the

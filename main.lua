@@ -1,22 +1,27 @@
 -- main.lua
--- An interactive tour of everything clay.lua (UI layout) and foley.lua
--- (procedural UI sound) can do. Switch sections with the tab bar up top.
+-- Pick a library on the main menu, then take an interactive tour of its
+-- public API. Switch sections with the tab bar up top; "< Menu" backs out.
 
 local Clay = require("clay")
 local Widgets = require("ui_widgets")
 
-local SECTIONS = {
-  { key = "layout",      label = "Layout",       module = require("demo_layout") },
-  { key = "text",        label = "Text & Fonts", module = require("demo_text") },
-  { key = "style",       label = "Style",        module = require("demo_style") },
-  { key = "scroll",      label = "Scroll",       module = require("demo_scroll") },
-  { key = "interact",    label = "Interact",     module = require("demo_interact") },
-  { key = "floating",    label = "Floating",     module = require("demo_floating") },
-  { key = "soundboard",  label = "Sound Board",  module = require("demo_soundboard") },
-  { key = "sounddesign", label = "Sound Design", module = require("demo_sounddesign") },
+local DEMOS = {
+  { key = "clay", label = "Clay", subtitle = "UI layout", sections = {
+      { key = "layout",   label = "Layout",       module = require("demo_layout") },
+      { key = "text",     label = "Text & Fonts", module = require("demo_text") },
+      { key = "style",    label = "Style",        module = require("demo_style") },
+      { key = "scroll",   label = "Scroll",       module = require("demo_scroll") },
+      { key = "interact", label = "Interact",     module = require("demo_interact") },
+      { key = "floating", label = "Floating",     module = require("demo_floating") },
+  }},
+  { key = "foley", label = "Foley", subtitle = "Procedural UI sound", sections = {
+      { key = "soundboard",  label = "Sound Board",  module = require("demo_soundboard") },
+      { key = "sounddesign", label = "Sound Design", module = require("demo_sounddesign") },
+  }},
 }
 
-local activeKey = SECTIONS[1].key
+local activeDemo = nil -- nil = show the menu; otherwise a DEMOS[].key
+local activeKey = nil   -- section key within the active demo
 local wheelX, wheelY = 0, 0
 
 function love.load()
@@ -43,6 +48,77 @@ function love.update(dt)
   wheelX, wheelY = 0, 0
 end
 
+local function findDemo(key)
+  for _, demo in ipairs(DEMOS) do
+    if demo.key == key then return demo end
+  end
+end
+
+local function drawMenu()
+  Clay.text("clay.lua + foley.lua -- feature tour", { fontId = "title", color = Widgets.palette.text })
+  Clay.text("Pick a library to explore.", { color = Widgets.palette.textDim })
+
+  Clay.element({ id = "MenuCards", layout = { direction = "column", childGap = 14, sizing = { width = "grow" } } }, function()
+    for _, demo in ipairs(DEMOS) do
+      Widgets.panel({
+        id = "Card:" .. demo.key,
+        layout = {
+          childGap = 14,
+          padding = 18,
+          sizing = { width = "grow" },
+          childAlignment = { y = "center" },
+        },
+      }, function()
+        Clay.element({ layout = { direction = "column", childGap = 4, sizing = { width = "grow" } } }, function()
+          Clay.text(demo.label, { fontId = "title", color = Widgets.palette.text })
+          Clay.text(demo.subtitle, { color = Widgets.palette.textDim, fontSize = 13 })
+        end)
+        Widgets.button({
+          id = "Open:" .. demo.key,
+          label = "Open",
+          onClick = function()
+            activeDemo = demo.key
+            activeKey = demo.sections[1].key
+          end,
+        })
+      end)
+    end
+  end)
+end
+
+local function drawDemo(demo)
+  Clay.element({
+    id = "DemoHeader",
+    layout = { childGap = 10, sizing = { width = "grow" }, childAlignment = { y = "center" } },
+    clip = { horizontal = true },
+  }, function()
+    Widgets.button({
+      id = "Back",
+      label = "< Menu",
+      hoverSound = "tick",
+      clickSound = "switch",
+      onClick = function()
+        activeDemo = nil
+        activeKey = nil
+      end,
+    })
+    Clay.text(demo.label .. " -- feature tour", { fontId = "title", color = Widgets.palette.text })
+  end)
+
+  Widgets.sectionTabBar({
+    id = "SectionTabs",
+    items = demo.sections,
+    active = activeKey,
+    onSelect = function(key) activeKey = key end,
+  })
+
+  for _, section in ipairs(demo.sections) do
+    if section.key == activeKey then
+      section.module.declare()
+    end
+  end
+end
+
 function love.draw()
   Clay.beginLayout()
 
@@ -56,20 +132,11 @@ function love.draw()
     },
     backgroundColor = Widgets.palette.bg,
   }, function()
-
-    Clay.text("clay.lua + foley.lua -- feature tour", { fontId = "title", color = Widgets.palette.text })
-
-    Widgets.sectionTabBar({
-      id = "MainTabs",
-      items = SECTIONS,
-      active = activeKey,
-      onSelect = function(key) activeKey = key end,
-    })
-
-    for _, section in ipairs(SECTIONS) do
-      if section.key == activeKey then
-        section.module.declare()
-      end
+    local demo = activeDemo and findDemo(activeDemo)
+    if demo then
+      drawDemo(demo)
+    else
+      drawMenu()
     end
   end)
 
