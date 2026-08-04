@@ -241,12 +241,41 @@ button, select, input { font: inherit; color: inherit; }
 
 .hidden { display: none !important; }
 
-/* ---------- mobile: stack editor above preview ---------- */
-@media (max-width: 700px) {
-  .split { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
-  .grip { display: none; }
+/* ---------- mobile tab bar ---------- */
+.mob-tabs { display: none; }
 
+/* ---------- mobile: one panel at a time ---------- */
+@media (max-width: 700px) {
+  #app { grid-template-rows: 46px 1fr 50px; }
+  .split { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  .editor, .bench { grid-column: 1; grid-row: 1; }
+  body.tab-editor .editor { display: grid; }
+  body.tab-editor .bench  { display: none; }
+  body.tab-game   .bench  { display: grid; }
+  body.tab-game   .editor { display: none; }
+  .grip { display: none; }
   #console { height: 100px; }
+
+  .mob-tabs {
+    display: flex;
+    background: var(--ink-2);
+    border-top: 1px solid var(--ink-3);
+  }
+  .mob-tab {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px;
+    padding: 6px 0;
+    border: 0;
+    background: transparent;
+    color: var(--txt-dim);
+    font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    cursor: pointer;
+  }
+  .mob-tab[aria-selected="true"] {
+    color: var(--pink);
+    box-shadow: inset 0 2px 0 var(--pink);
+  }
 }
 </style>
 </head>
@@ -310,6 +339,10 @@ button, select, input { font: inherit; color: inherit; }
       </div>
     </section>
   </div>
+  <nav class="mob-tabs" role="tablist" aria-label="Panel switcher">
+    <button class="mob-tab" id="tab-editor" role="tab" aria-selected="true">✏ Editor</button>
+    <button class="mob-tab" id="tab-game"   role="tab" aria-selected="false">▶ Game</button>
+  </nav>
 </div>
 
 <!-- Source for the sandboxed runner document. Injected into an iframe on every run. -->
@@ -5069,8 +5102,40 @@ function init() {
     applyFrame(w, h);
   });
 
+  // Mobile tab switching
+  document.body.classList.add("tab-editor");
+
+  function switchTab(tab) {
+    document.body.classList.toggle("tab-editor", tab === "editor");
+    document.body.classList.toggle("tab-game",   tab === "game");
+    el("tab-editor").setAttribute("aria-selected", String(tab === "editor"));
+    el("tab-game").setAttribute("aria-selected",   String(tab === "game"));
+    if (tab === "game") requestAnimationFrame(() => requestAnimationFrame(fitDevice));
+  }
+
+  el("tab-editor").addEventListener("click", () => switchTab("editor"));
+  el("tab-game").addEventListener("click",   () => switchTab("game"));
+
+  function initSwipe() {
+    const area = document.querySelector(".split");
+    let sx = 0, sy = 0, locked = false;
+    area.addEventListener("touchstart", ev => {
+      if (window.innerWidth > 700 || ev.target.closest(".device")) return;
+      sx = ev.touches[0].clientX; sy = ev.touches[0].clientY; locked = false;
+    }, { passive: true });
+    area.addEventListener("touchend", ev => {
+      if (window.innerWidth > 700 || locked) return;
+      const dx = ev.changedTouches[0].clientX - sx;
+      const dy = ev.changedTouches[0].clientY - sy;
+      if (Math.abs(dx) < 60 || Math.abs(dy) > 40) return;
+      locked = true;
+      switchTab(dx < 0 ? "game" : "editor");
+    }, { passive: true });
+  }
+
   initGrip();
   initDevicePan();
+  initSwipe();
   new ResizeObserver(fitDevice).observe(el("stagearea"));
   window.addEventListener("resize", fitDevice);
   window.addEventListener("beforeunload", saveProject);
