@@ -178,20 +178,21 @@ button, select, input { font: inherit; color: inherit; }
   display: grid; grid-template-rows: 1fr auto;
   min-width: 0; min-height: 0;
   overflow: hidden;
-  background:
-    repeating-linear-gradient(90deg, rgba(0,0,0,.035) 0 1px, transparent 1px 4px),
-    var(--bench);
+  background: var(--bench);
   color: var(--bench-txt);
 }
 .stagearea { display: grid; place-items: center; min-height: 0; padding: 20px; overflow: hidden; }
 .device {
-  transform: scale(var(--k));
+  transform: translate(var(--dx, 0px), var(--dy, 0px)) scale(var(--k));
   transform-origin: center center;
   padding: 14px;
   border-radius: 30px;
   background: linear-gradient(#312d3b, #201d28);
   box-shadow: 0 1px 0 rgba(255,255,255,.14) inset, 0 18px 34px -14px rgba(0,0,0,.55);
+  cursor: grab;
+  touch-action: none;
 }
+.device.dragging { cursor: grabbing; }
 .speaker {
   width: 46px; height: 4px; margin: 0 auto 10px;
   border-radius: 2px; background: #15131c;
@@ -1165,6 +1166,64 @@ function initGrip() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Device drag (repositioning the phone on the bench)
+ * ------------------------------------------------------------------ */
+function initDevicePan() {
+  const device = el("device");
+  let dragging = false;
+  let startX = 0, startY = 0, originX = 0, originY = 0, panX = 0, panY = 0;
+
+  device.addEventListener("pointerdown", ev => {
+    if (ev.target.closest(".screen")) return;
+    dragging = true;
+    startX = ev.clientX;
+    startY = ev.clientY;
+    originX = panX;
+    originY = panY;
+    device.classList.add("dragging");
+    device.setPointerCapture(ev.pointerId);
+  });
+
+  device.addEventListener("pointermove", ev => {
+    if (!dragging) return;
+    let nx = originX + (ev.clientX - startX);
+    let ny = originY + (ev.clientY - startY);
+
+    // Keep at least a corner of the phone reachable so it can always be dragged back.
+    const area = el("stagearea").getBoundingClientRect();
+    const k = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--k")) || 1;
+    const visW = device.offsetWidth * k, visH = device.offsetHeight * k;
+    const margin = 32;
+    const maxX = area.width / 2 + visW / 2 - margin;
+    const maxY = area.height / 2 + visH / 2 - margin;
+    nx = Math.max(-maxX, Math.min(maxX, nx));
+    ny = Math.max(-maxY, Math.min(maxY, ny));
+
+    panX = nx;
+    panY = ny;
+    device.style.setProperty("--dx", panX + "px");
+    device.style.setProperty("--dy", panY + "px");
+  });
+
+  const endDrag = ev => {
+    if (!dragging) return;
+    dragging = false;
+    device.classList.remove("dragging");
+    device.releasePointerCapture(ev.pointerId);
+  };
+  device.addEventListener("pointerup", endDrag);
+  device.addEventListener("pointercancel", endDrag);
+
+  device.addEventListener("dblclick", ev => {
+    if (ev.target.closest(".screen")) return;
+    panX = 0;
+    panY = 0;
+    device.style.setProperty("--dx", "0px");
+    device.style.setProperty("--dy", "0px");
+  });
+}
+
+/* ------------------------------------------------------------------ *
  * Wiring
  * ------------------------------------------------------------------ */
 function init() {
@@ -1217,6 +1276,7 @@ function init() {
   });
 
   initGrip();
+  initDevicePan();
   new ResizeObserver(fitDevice).observe(el("stagearea"));
   window.addEventListener("resize", fitDevice);
   window.addEventListener("beforeunload", saveProject);
