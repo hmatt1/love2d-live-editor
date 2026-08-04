@@ -44,6 +44,7 @@ const mainFile = saved.files.find(f => f.name === "main.lua");
 assert.ok(mainFile.text.includes("love.draw"), "main.lua was blanked on first paint");
 assert.ok(mainFile.text.length > 400, `main.lua truncated to ${mainFile.text.length} chars`);
 assert.strictEqual($(w, "code").value, mainFile.text, "textarea does not show main.lua");
+const freshMainLua = mainFile.text;
 console.log("PASS  first paint preserves main.lua (" + mainFile.text.length + " chars)");
 
 /* ---- 2. gutter tracks line count ---- */
@@ -101,5 +102,17 @@ console.log("PASS  full reload round-trip");
 /* ---- 7. run is blocked until the runtime loads, and says so ---- */
 assert.strictEqual($(w2, "run").disabled, true, "Run should be disabled before the runtime is ready");
 console.log("PASS  Run gated on runtime availability");
+
+/* ---- 8. Reset restores the real starter main.lua, not the stale on-screen edit ---- */
+w2.confirm = () => true;
+$(w2, "reset").dispatchEvent(new w2.Event("click", { bubbles: true }));
+assert.strictEqual($(w2, "code").value, freshMainLua,
+  "Reset must show the fresh starter main.lua, not the stale edited textarea value");
+assert.ok(!$(w2, "code").value.includes("-- edited"), "Reset left the old edit in main.lua");
+const resetTabs = [...$(w2, "tabs").querySelectorAll(".tab:not(.tab-add)")].map(t => t.textContent.replace("×", ""));
+assert.ok(resetTabs.includes("clay.lua"), "Reset did not reseed the full starter file set");
+const savedAfterReset = JSON.parse(w2.localStorage.getItem(KEY)).files.find(f => f.name === "main.lua");
+assert.strictEqual(savedAfterReset.text, freshMainLua, "Reset persisted the stale main.lua to storage");
+console.log("PASS  Reset restores the real starter main.lua");
 
 console.log("\nAll editor DOM tests passed.");

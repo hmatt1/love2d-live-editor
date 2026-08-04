@@ -4749,6 +4749,11 @@ function loadProject() {
 
 function resetProject() {
   if (!confirm("Replace the current project with the starter example?")) return;
+  // selectFile() below calls syncActiveFile() before it reassigns state.active,
+  // which would otherwise write the stale on-screen text for whatever tab was
+  // open back over main.lua (same bug class as addUploads() above -- see the
+  // run-love2d-live-editor skill notes).
+  editorLoaded = false;
   state.files.clear();
   for (const f of starterFiles(state.frame.w, state.frame.h)) state.files.set(f.name, { name: f.name, binary: false, text: f.text });
   state.active = "main.lua";
