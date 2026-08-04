@@ -313,6 +313,7 @@ button, select, input { font: inherit; color: inherit; }
     z-index: 99;
   }
   body.tab-game.has-log-badge .console-strip { display: block; }
+  body.tab-game.has-log-badge .split { padding-bottom: calc(78px + env(safe-area-inset-bottom)); }
   body.tab-game.has-log-badge.strip-err   .console-strip { color: var(--amber); }
   body.tab-game.has-log-badge.strip-fatal .console-strip { color: var(--pink); }
   body.tab-game.has-log-badge:not(.strip-err):not(.strip-fatal) .console-strip { color: var(--txt-dim); }
