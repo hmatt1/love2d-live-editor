@@ -965,6 +965,14 @@ function newFile() {
 }
 
 async function addUploads(fileList) {
+  // Flush any pending edit into the file being replaced first. Then stop
+  // syncing: selectFile() below calls syncActiveFile() again before it
+  // reassigns state.active, and if an uploaded file reuses the currently
+  // open name (almost always main.lua), that second sync would clobber the
+  // just-loaded content with this now-stale textarea value.
+  syncActiveFile();
+  editorLoaded = false;
+
   for (const file of fileList) {
     try {
       if (/\.(love|zip)$/i.test(file.name)) {
