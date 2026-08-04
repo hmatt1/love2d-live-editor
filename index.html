@@ -248,11 +248,14 @@ button, select, input { font: inherit; color: inherit; }
 @media (max-width: 700px) {
   #app { grid-template-rows: 46px 1fr; }
   .split { grid-template-columns: 1fr; grid-template-rows: 1fr; padding-bottom: calc(50px + env(safe-area-inset-bottom)); }
-  .editor, .bench { grid-column: 1; grid-row: 1; }
-  body.tab-editor .editor { display: grid; }
-  body.tab-editor .bench  { display: none; }
-  body.tab-game   .bench  { display: grid; }
-  body.tab-game   .editor { display: none; }
+  .editor, .bench {
+    grid-column: 1; grid-row: 1;
+    transition: opacity 100ms ease, visibility 100ms;
+  }
+  body.tab-editor .editor { opacity: 1; visibility: visible; z-index: 1; }
+  body.tab-editor .bench  { opacity: 0; visibility: hidden;  z-index: 0; }
+  body.tab-game   .bench  { opacity: 1; visibility: visible; z-index: 1; }
+  body.tab-game   .editor { opacity: 0; visibility: hidden;  z-index: 0; }
   .grip { display: none; }
   #console { height: 100px; }
 
