@@ -4471,6 +4471,7 @@ function run() {
 
   const frame = document.createElement("iframe");
   frame.title = "Game preview";
+  frame.allow = "autoplay";
   frame.srcdoc = runnerHtml();
   el("screen").appendChild(frame);
   stage = frame;
