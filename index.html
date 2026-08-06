@@ -2968,11 +2968,17 @@ local function render_layer(buffer, layer, start_sample)
         local fMax = layer.fMax or 2000
         local d_grain = layer.d or 0.1
         local peak_grain = layer.peak or 0.1
-        math.randomseed(layer.seed or 1)
+        
+        -- Local deterministic PRNG for cluster so we don't mess up the global math.random state
+        local seed = layer.seed or 1
+        local function lcg()
+            seed = (seed * 1103515245 + 12345) % 2147483648
+            return seed / 2147483648
+        end
 
         for g = 0, n-1 do
             local grain_start = g * step
-            local freq = fMin + math.random() * (fMax - fMin)
+            local freq = fMin + lcg() * (fMax - fMin)
             local grain_length = math.floor(d_grain * SAMPLE_RATE)
             local offset_g = math.floor(grain_start * SAMPLE_RATE)
             local phase = 0
@@ -2991,7 +2997,6 @@ local function render_layer(buffer, layer, start_sample)
                 end
             end
         end
-        math.randomseed(os.time()) -- restore randomness
     end
 end
 
