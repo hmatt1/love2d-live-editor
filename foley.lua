@@ -187,7 +187,6 @@ local function render_layer(buffer, layer, start_sample)
             local t = (i-1) / SAMPLE_RATE
             -- envelope
             local env = envelope(t, a, d, peak)
-            if env == 0 then break end
 
             -- frequency interpolation
             if t < glide_time and layer.f2 then
@@ -234,7 +233,6 @@ local function render_layer(buffer, layer, start_sample)
         for i = 1, length do
             local t = (i-1) / SAMPLE_RATE
             local env = envelope(t, a, d, peak)
-            if env == 0 then break end
 
             -- update filter coefficients if frequency changed
             local freq
@@ -281,7 +279,6 @@ local function render_layer(buffer, layer, start_sample)
             for i = 1, grain_length do
                 local t = (i-1) / SAMPLE_RATE
                 local env = envelope(t, 0, d_grain, peak_grain)  -- attack=0
-                if env == 0 then break end
 
                 phase = phase + freq / SAMPLE_RATE
                 phase = phase % 1
