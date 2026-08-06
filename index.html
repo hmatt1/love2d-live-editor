@@ -3538,7 +3538,7 @@ function M.declare()
     Widgets.panel({
       layout = { sizing = { width = "grow", height = Clay.sizing.fixed(170) }, padding = 16 },
       backgroundColor = Widgets.palette.panel2,
-      clip = { vertical = true, horizontal = true },
+      clip = { vertical = true, horizontal = state.wrapMode ~= "words" },
     }, function()
       Clay.text(state.wrapMode == "newlines" and SAMPLE_LINES or SAMPLE_WORDS, {
         fontId = "display",
