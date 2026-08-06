@@ -27,7 +27,7 @@ function M.declare()
             clip = { horizontal = true },
           }, function()
             for _, cue in ipairs(family.cues) do
-              Widgets.button({ id = "soundboard:" .. cue, label = cue, hoverSound = "tick", clickSound = cue })
+              Widgets.button({ id = "soundboard:" .. cue, label = cue, clickSound = cue })
             end
           end)
         end)

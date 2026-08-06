@@ -35,7 +35,7 @@ local function fireOnEnter(id, hovered, sound)
 end
 
 --- opts: id, label, onClick, width, height, active(bool),
----       hoverSound (cue name or false to silence, default "hover"),
+---       hoverSound (cue name or false to silence, default false),
 ---       clickSound (cue name or false to silence, default "press")
 function Widgets.button(opts)
   local id = opts.id
@@ -52,8 +52,8 @@ function Widgets.button(opts)
     border = { width = 1, color = Widgets.palette.border },
   }, function()
     local hovered = Clay.pointerOver(id)
-    if opts.hoverSound ~= false then
-      fireOnEnter(id, hovered, opts.hoverSound or "hover")
+    if opts.hoverSound then
+      fireOnEnter(id, hovered, opts.hoverSound)
     end
 
     local ps = Clay.getPointerState()
@@ -240,7 +240,9 @@ function Widgets.actionCard(opts)
   local id = opts.id
   local hovered = Clay.pointerOver(id)
   
-  fireOnEnter(id, hovered, "hover")
+  if opts.hoverSound then
+    fireOnEnter(id, hovered, opts.hoverSound)
+  end
 
   local ps = Clay.getPointerState()
   if hovered and ps.state == "pressedThisFrame" then
