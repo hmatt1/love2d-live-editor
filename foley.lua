@@ -138,10 +138,10 @@ local function compute_biquad_coeffs(freq, q, filter_type)
         a0 = 1 + alpha
         a1 = -2 * cos_w0
         a2 = 1 - alpha
-    else -- bandpass (peak gain = Q)
-        b0 = sin_w0 / 2  -- = Q * alpha ? Actually RBJ: b0 = alpha
+    else -- bandpass (0 dB peak gain)
+        b0 = alpha
         b1 = 0
-        b2 = -sin_w0 / 2  -- -alpha
+        b2 = -alpha
         a0 = 1 + alpha
         a1 = -2 * cos_w0
         a2 = 1 - alpha
@@ -150,7 +150,7 @@ local function compute_biquad_coeffs(freq, q, filter_type)
     -- Normalize
     b0, b1, b2 = b0 / a0, b1 / a0, b2 / a0
     a1, a2 = a1 / a0, a2 / a0
-    return b0, b1, b2, -a1, -a2   -- note sign flip for feedback
+    return b0, b1, b2, a1, a2
 end
 
 -- Simple linear envelope
