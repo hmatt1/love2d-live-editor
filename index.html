@@ -388,6 +388,25 @@ button, select, input { font: inherit; color: inherit; }
   <a href="https://github.com/hmatt1/love2d-live-editor/commit/947e174" target="_blank" style="position: fixed; bottom: 12px; right: 14px; color: #84828f; font-family: sans-serif; font-size: 12px; text-decoration: none; z-index: 9999; opacity: 0.6; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6" aria-label="View commit on GitHub">
     947e174
   </a>
+  <button onclick="playTestBeep()" style="position: fixed; bottom: 12px; left: 14px; background: transparent; color: #84828f; border: 1px solid #84828f; border-radius: 4px; padding: 2px 6px; font-family: sans-serif; font-size: 11px; cursor: pointer; z-index: 9999; opacity: 0.6; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6" aria-label="Test Web Audio">
+    🔊 Test Audio
+  </button>
+  <script>
+    function playTestBeep() {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    }
+  </script>
 </div>
 
 <!-- Source for the sandboxed runner document. Injected into an iframe on every run. -->
