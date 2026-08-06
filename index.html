@@ -2352,10 +2352,14 @@ function Clay.updateScrollContainers(enableDragScrolling, scrollDeltaX, scrollDe
     local canScrollVertically = clip.vertical and scrollData.contentHeight > element.height
     local canScrollHorizontally = clip.horizontal and scrollData.contentWidth > element.width
     if canScrollVertically then
-      scrollData.scrollY = scrollData.scrollY + scrollDeltaY * 10
+      local dy = scrollDeltaY
+      if dy > 5 or dy < -5 then dy = dy / 100 end
+      scrollData.scrollY = scrollData.scrollY + dy * 30
     end
     if canScrollHorizontally then
-      scrollData.scrollX = scrollData.scrollX + scrollDeltaX * 10
+      local dx = scrollDeltaX
+      if dx > 5 or dx < -5 then dx = dx / 100 end
+      scrollData.scrollX = scrollData.scrollX + dx * 30
     end
     if isPointerActive then
       scrollData.momentumX, scrollData.momentumY = 0, 0
@@ -3548,84 +3552,93 @@ function M.declare()
       { fontId = "title", color = Widgets.palette.text })
 
     Clay.element({
-      id = "style:row", layout = { childGap = 16, sizing = { width = "grow" }, childAlignment = { y = "top" } },
-      clip = { horizontal = true },
+      id = "style:container", layout = { direction = "column", childGap = 16, sizing = { width = "grow", height = "grow" } },
+      clip = { vertical = true, horizontal = true },
     }, function()
 
-      -- cornerRadius: uniform vs. per-corner
       Clay.element({
-        layout = { direction = "column", childGap = 8, sizing = { width = Clay.sizing.fixed(160) } },
+        id = "style:row1", layout = { childGap = 16, sizing = { width = "grow" }, childAlignment = { y = "top" } },
       }, function()
-        Clay.text("cornerRadius", { color = Widgets.palette.textDim, fontSize = 12 })
+        -- cornerRadius: uniform vs. per-corner
         Clay.element({
-          layout = { sizing = { width = "grow", height = Clay.sizing.fixed(70) } },
-          backgroundColor = Widgets.palette.pink, cornerRadius = 24,
-        })
-        Clay.element({
-          layout = { sizing = { width = "grow", height = Clay.sizing.fixed(70) } },
-          backgroundColor = Widgets.palette.amber,
-          cornerRadius = { topLeft = 24, topRight = 0, bottomLeft = 0, bottomRight = 24 },
-        })
-      end)
-
-      -- border: uniform vs. per-side + betweenChildren
-      Clay.element({
-        layout = { direction = "column", childGap = 8, sizing = { width = Clay.sizing.fixed(160) } },
-      }, function()
-        Clay.text("border", { color = Widgets.palette.textDim, fontSize = 12 })
-        Clay.element({
-          layout = { sizing = { width = "grow", height = Clay.sizing.fixed(70) } },
-          backgroundColor = Widgets.palette.panel2,
-          border = { width = 2, color = Widgets.palette.mint },
-          cornerRadius = 6,
-        })
-        Clay.element({
-          id = "style:betweenChildren",
-          layout = {
-            direction = "column", sizing = { width = "grow", height = Clay.sizing.fixed(70) },
-            padding = 6,
-          },
-          backgroundColor = Widgets.palette.panel2,
-          border = { width = { left = 0, right = 0, top = 0, bottom = 0, betweenChildren = 1 }, color = Widgets.palette.border },
+          layout = { direction = "column", childGap = 8, sizing = { width = Clay.sizing.fixed(160) } },
         }, function()
-          for i = 1, 3 do
-            Clay.element({ layout = { sizing = { width = "grow", height = "grow" } } }, function()
-              Clay.text("row " .. i, { color = Widgets.palette.text, fontSize = 11 })
-            end)
-          end
+          Clay.text("cornerRadius", { color = Widgets.palette.textDim, fontSize = 12 })
+          Clay.element({
+            layout = { sizing = { width = "grow", height = Clay.sizing.fixed(70) } },
+            backgroundColor = Widgets.palette.pink, cornerRadius = 24,
+          })
+          Clay.element({
+            layout = { sizing = { width = "grow", height = Clay.sizing.fixed(70) } },
+            backgroundColor = Widgets.palette.amber,
+            cornerRadius = { topLeft = 24, topRight = 0, bottomLeft = 0, bottomRight = 24 },
+          })
+        end)
+
+        -- border: uniform vs. per-side + betweenChildren
+        Clay.element({
+          layout = { direction = "column", childGap = 8, sizing = { width = Clay.sizing.fixed(160) } },
+        }, function()
+          Clay.text("border", { color = Widgets.palette.textDim, fontSize = 12 })
+          Clay.element({
+            layout = { sizing = { width = "grow", height = Clay.sizing.fixed(70) } },
+            backgroundColor = Widgets.palette.panel2,
+            border = { width = 2, color = Widgets.palette.mint },
+            cornerRadius = 6,
+          })
+          Clay.element({
+            id = "style:betweenChildren",
+            layout = {
+              direction = "column", sizing = { width = "grow", height = Clay.sizing.fixed(70) },
+              padding = 6,
+            },
+            backgroundColor = Widgets.palette.panel2,
+            border = { width = { left = 0, right = 0, top = 0, bottom = 0, betweenChildren = 1 }, color = Widgets.palette.border },
+          }, function()
+            for i = 1, 3 do
+              Clay.element({ layout = { sizing = { width = "grow", height = "grow" } } }, function()
+                Clay.text("row " .. i, { color = Widgets.palette.text, fontSize = 11 })
+              end)
+            end
+          end)
         end)
       end)
 
-      -- overlayColor: tint drawn over an element's children
       Clay.element({
-        layout = { direction = "column", childGap = 8, sizing = { width = Clay.sizing.fixed(160) } },
+        id = "style:row2", layout = { childGap = 16, sizing = { width = "grow" }, childAlignment = { y = "top" } },
       }, function()
-        Clay.text("overlayColor", { color = Widgets.palette.textDim, fontSize = 12 })
+        -- overlayColor: tint drawn over an element's children
         Clay.element({
-          layout = {
-            sizing = { width = "grow", height = Clay.sizing.fixed(148) },
-            padding = 10, childAlignment = { x = "center", y = "center" },
-          },
-          backgroundColor = Widgets.palette.mint,
-          overlayColor = { 0, 0, 0, 0.55 },
-          cornerRadius = 8,
+          layout = { direction = "column", childGap = 8, sizing = { width = Clay.sizing.fixed(160) } },
         }, function()
-          Clay.text("dimmed by\\noverlayColor", { color = { 1, 1, 1 }, alignment = "center", wrapMode = "newlines" })
+          Clay.text("overlayColor", { color = Widgets.palette.textDim, fontSize = 12 })
+          Clay.element({
+            layout = {
+              sizing = { width = "grow", height = Clay.sizing.fixed(148) },
+              padding = 10, childAlignment = { x = "center", y = "center" },
+            },
+            backgroundColor = Widgets.palette.mint,
+            overlayColor = { 0, 0, 0, 0.55 },
+            cornerRadius = 8,
+          }, function()
+            Clay.text("dimmed by\\noverlayColor", { color = { 1, 1, 1 }, alignment = "center", wrapMode = "newlines" })
+          end)
+        end)
+
+        -- aspectRatio + image
+        Clay.element({
+          layout = { direction = "column", childGap = 8, sizing = { width = Clay.sizing.fixed(160) } },
+        }, function()
+          Clay.text("aspectRatio + image", { color = Widgets.palette.textDim, fontSize = 12 })
+          Clay.element({
+            layout = { sizing = { width = "grow" } },
+            image = getBadgeImage(),
+            aspectRatio = 1.0,
+            cornerRadius = 8,
+          })
         end)
       end)
 
-      -- aspectRatio + image
-      Clay.element({
-        layout = { direction = "column", childGap = 8, sizing = { width = Clay.sizing.fixed(160) } },
-      }, function()
-        Clay.text("aspectRatio + image", { color = Widgets.palette.textDim, fontSize = 12 })
-        Clay.element({
-          layout = { sizing = { width = "grow" } },
-          image = getBadgeImage(),
-          aspectRatio = 1.0,
-          cornerRadius = 8,
-        })
-      end)
     end)
   end)
 end

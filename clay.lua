@@ -1668,10 +1668,14 @@ function Clay.updateScrollContainers(enableDragScrolling, scrollDeltaX, scrollDe
     local canScrollVertically = clip.vertical and scrollData.contentHeight > element.height
     local canScrollHorizontally = clip.horizontal and scrollData.contentWidth > element.width
     if canScrollVertically then
-      scrollData.scrollY = scrollData.scrollY + scrollDeltaY * 10
+      local dy = scrollDeltaY
+      if dy > 5 or dy < -5 then dy = dy / 100 end
+      scrollData.scrollY = scrollData.scrollY + dy * 30
     end
     if canScrollHorizontally then
-      scrollData.scrollX = scrollData.scrollX + scrollDeltaX * 10
+      local dx = scrollDeltaX
+      if dx > 5 or dx < -5 then dx = dx / 100 end
+      scrollData.scrollX = scrollData.scrollX + dx * 30
     end
     if isPointerActive then
       scrollData.momentumX, scrollData.momentumY = 0, 0
