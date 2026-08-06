@@ -13,7 +13,17 @@ function M.declare()
     layout = { direction = "column", childGap = 14, padding = 16, sizing = { width = "grow", height = "grow" } },
   }, function()
     Clay.text("Sound Board -- Foley.FAMILIES x Foley.play(cue)", { fontId = "title", color = Widgets.palette.text })
-
+    
+    Clay.element({ layout = { direction = "row", childGap = 12, childAlignment = { y = "center" } } }, function()
+      Clay.text(string.format("Master Volume Gain: %.1fx", Foley.masterVolume), { color = Widgets.palette.text })
+      Foley.masterVolume = Widgets.slider({
+        id = "soundboard:volume",
+        value = Foley.masterVolume,
+        min = 0.1,
+        max = 5.0,
+        width = 200,
+      })
+    end)
     Clay.element({
       id = "soundboard:list",
       layout = { direction = "column", childGap = 14, sizing = { width = "grow", height = "grow" }, padding = { right = 6 } },

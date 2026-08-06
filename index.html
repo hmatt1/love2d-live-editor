@@ -2703,6 +2703,8 @@ const FOLEY_SRC = `-- foley.lua
 
 local Foley = {}
 
+Foley.masterVolume = 2.5
+
 -- ── Constants ─────────────────────────────────────────────────────────────────
 Foley.WAVES   = { "sine", "triangle", "square", "sawtooth" }
 Foley.FILTERS = { "bandpass", "lowpass", "highpass" }
@@ -3026,7 +3028,7 @@ local function synthesize_spec(spec)
     -- clamp and create SoundData
     local sd = love.sound.newSoundData(sample_count, SAMPLE_RATE, 16, 1)
     for i = 1, sample_count do
-        local val = math.max(-1, math.min(1, buffer[i] * 2.5))
+        local val = math.max(-1, math.min(1, buffer[i] * Foley.masterVolume))
         sd:setSample(i-1, val)
     end
     return sd
@@ -4041,7 +4043,17 @@ function M.declare()
     layout = { direction = "column", childGap = 14, padding = 16, sizing = { width = "grow", height = "grow" } },
   }, function()
     Clay.text("Sound Board -- Foley.FAMILIES x Foley.play(cue)", { fontId = "title", color = Widgets.palette.text })
-
+    
+    Clay.element({ layout = { direction = "row", childGap = 12, childAlignment = { y = "center" } } }, function()
+      Clay.text(string.format("Master Volume Gain: %.1fx", Foley.masterVolume), { color = Widgets.palette.text })
+      Foley.masterVolume = Widgets.slider({
+        id = "soundboard:volume",
+        value = Foley.masterVolume,
+        min = 0.1,
+        max = 5.0,
+        width = 200,
+      })
+    end)
     Clay.element({
       id = "soundboard:list",
       layout = { direction = "column", childGap = 14, sizing = { width = "grow", height = "grow" }, padding = { right = 6 } },

@@ -4,6 +4,8 @@
 
 local Foley = {}
 
+Foley.masterVolume = 2.5
+
 -- ── Constants ─────────────────────────────────────────────────────────────────
 Foley.WAVES   = { "sine", "triangle", "square", "sawtooth" }
 Foley.FILTERS = { "bandpass", "lowpass", "highpass" }
@@ -327,7 +329,7 @@ local function synthesize_spec(spec)
     -- clamp and create SoundData
     local sd = love.sound.newSoundData(sample_count, SAMPLE_RATE, 16, 1)
     for i = 1, sample_count do
-        local val = math.max(-1, math.min(1, buffer[i] * 2.5))
+        local val = math.max(-1, math.min(1, buffer[i] * Foley.masterVolume))
         sd:setSample(i-1, val)
     end
     return sd
