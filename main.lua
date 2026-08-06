@@ -55,34 +55,43 @@ local function findDemo(key)
 end
 
 local function drawMenu()
-  Clay.text("clay.lua + foley.lua -- feature tour", { fontId = "title", color = Widgets.palette.text })
-  Clay.text("Pick a library to explore.", { color = Widgets.palette.textDim })
-
-  Clay.element({ id = "MenuCards", layout = { direction = "column", childGap = 14, sizing = { width = "grow" } } }, function()
-    for _, demo in ipairs(DEMOS) do
-      Widgets.panel({
-        id = "Card:" .. demo.key,
-        layout = {
-          childGap = 14,
-          padding = 18,
-          sizing = { width = "grow" },
-          childAlignment = { y = "center" },
-        },
-      }, function()
-        Clay.element({ layout = { direction = "column", childGap = 4, sizing = { width = "grow" } } }, function()
-          Clay.text(demo.label, { fontId = "title", color = Widgets.palette.text })
-          Clay.text(demo.subtitle, { color = Widgets.palette.textDim, fontSize = 13 })
-        end)
-        Widgets.button({
-          id = "Open:" .. demo.key,
-          label = "Open",
-          onClick = function()
-            activeDemo = demo.key
-            activeKey = demo.sections[1].key
-          end,
-        })
+  Clay.element({
+    id = "MenuWrapper",
+    layout = { 
+      direction = "column", 
+      sizing = { width = "grow", height = "grow" }, 
+      childAlignment = { x = "center", y = "center" } 
+    }
+  }, function()
+    Clay.element({
+      id = "MenuCenter",
+      layout = { direction = "column", childGap = 32, sizing = { width = Clay.sizing.fixed(480) } }
+    }, function()
+      
+      -- Header
+      Clay.element({ layout = { direction = "column", childGap = 8, childAlignment = { x = "center" } } }, function()
+        Clay.text("clay.lua + foley.lua", { fontId = "title", color = Widgets.palette.text })
+        Clay.text("Pick a library to explore.", { color = Widgets.palette.textDim })
       end)
-    end
+
+      -- Cards
+      Clay.element({ id = "MenuCards", layout = { direction = "column", childGap = 16, sizing = { width = "grow" } } }, function()
+        for i, demo in ipairs(DEMOS) do
+          local accentColor = (i == 1) and Widgets.palette.pink or Widgets.palette.mint
+          Widgets.actionCard({
+            id = "Card:" .. demo.key,
+            title = demo.label,
+            subtitle = demo.subtitle,
+            accentColor = accentColor,
+            onClick = function()
+              activeDemo = demo.key
+              activeKey = demo.sections[1].key
+            end,
+          })
+        end
+      end)
+      
+    end)
   end)
 end
 

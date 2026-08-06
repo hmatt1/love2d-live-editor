@@ -234,4 +234,41 @@ function Widgets.sectionTabBar(opts)
   end)
 end
 
+--- A large clickable card with a colored left accent border.
+--- opts: id, title, subtitle, accentColor, onClick, width
+function Widgets.actionCard(opts)
+  local id = opts.id
+  local hovered = Clay.pointerOver(id)
+  
+  fireOnEnter(id, hovered, "hover")
+
+  local ps = Clay.getPointerState()
+  if hovered and ps.state == "pressedThisFrame" then
+    Foley.play("press")
+    if opts.onClick then opts.onClick() end
+  end
+
+  Clay.element({
+    id = id,
+    layout = {
+      direction = "row",
+      childGap = 14,
+      padding = { x = 20, y = 16 },
+      sizing = { width = opts.width or "grow" },
+      childAlignment = { y = "center" },
+    },
+    backgroundColor = hovered and Widgets.palette.panel2 or Widgets.palette.panel,
+    cornerRadius = 8,
+    border = { width = { left = 4, right = 0, top = 0, bottom = 0 }, color = opts.accentColor },
+  }, function()
+    -- Text Column
+    Clay.element({ layout = { direction = "column", childGap = 4, sizing = { width = "grow" } } }, function()
+      Clay.text(opts.title, { fontId = "title", color = hovered and opts.accentColor or Widgets.palette.text })
+      Clay.text(opts.subtitle, { color = Widgets.palette.textDim, fontSize = 13 })
+    end)
+    -- Chevron
+    Clay.text(">", { fontId = "title", color = hovered and opts.accentColor or Widgets.palette.border })
+  end)
+end
+
 return Widgets
