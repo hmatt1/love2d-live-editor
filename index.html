@@ -2852,13 +2852,13 @@ local function compute_biquad_coeffs(freq, q, filter_type)
     return b0, b1, b2, a1, a2
 end
 
--- Simple linear envelope
 local function envelope(t, attack, decay, peak)
     if t < attack then
         return (t / attack) * peak
     elseif t < attack + decay then
         local decay_t = (t - attack) / decay
-        return peak * (1 - decay_t)
+        -- Web Audio exponentialRampToValueAtTime typically decays exponentially
+        return peak * math.pow(0.001, decay_t)
     end
     return 0
 end
@@ -2892,7 +2892,7 @@ local function render_layer(buffer, layer, start_sample)
             -- frequency interpolation
             if t < glide_time and layer.f2 then
                 local frac = t / glide_time
-                freq = f_start + (f_end - f_start) * frac
+                freq = f_start * math.pow(f_end / f_start, frac)
             else
                 freq = f_end
             end
@@ -2938,7 +2938,7 @@ local function render_layer(buffer, layer, start_sample)
             -- update filter coefficients if frequency changed
             local freq
             if t < glide_time and layer.f2 then
-                freq = f_start + (f_end - f_start) * (t / glide_time)
+                freq = f_start * math.pow(f_end / f_start, t / glide_time)
             else
                 freq = f_end
             end
