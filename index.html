@@ -3016,7 +3016,7 @@ local function synthesize_spec(spec)
         end
         if layer_end > total_dur then total_dur = layer_end end
     end
-    total_dur = math.max(total_dur, 0.01)
+    total_dur = math.max(total_dur, 0.15)
     local sample_count = math.ceil(total_dur * SAMPLE_RATE)
     local buffer = {}
     for i = 1, sample_count do buffer[i] = 0 end
