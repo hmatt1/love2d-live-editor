@@ -1,153 +1,153 @@
--- main.lua
--- Pick a library on the main menu, then take an interactive tour of its
--- public API. Switch sections with the tab bar up top; "< Menu" backs out.
+local api = require('love-api.love_api')
 
-local Clay = require("clay")
-local Widgets = require("ui_widgets")
+local state = "menu"
+local font
 
-local DEMOS = {
-  { key = "clay", label = "Clay", subtitle = "UI layout", sections = {
-      { key = "layout",   label = "Layout",       module = require("demo_layout") },
-      { key = "text",     label = "Text & Fonts", module = require("demo_text") },
-      { key = "style",    label = "Style",        module = require("demo_style") },
-      { key = "scroll",   label = "Scroll",       module = require("demo_scroll") },
-      { key = "interact", label = "Interact",     module = require("demo_interact") },
-      { key = "floating", label = "Floating",     module = require("demo_floating") },
-  }},
-  { key = "foley", label = "Foley", subtitle = "Procedural UI sound", sections = {
-      { key = "soundboard",  label = "Sound Board",  module = require("demo_soundboard") },
-      { key = "sounddesign", label = "Sound Design", module = require("demo_sounddesign") },
-  }},
-}
+local modules = {}
+for i, m in ipairs(api.modules) do
+    table.insert(modules, m)
+end
 
-local activeDemo = nil -- nil = show the menu; otherwise a DEMOS[].key
-local activeKey = nil   -- section key within the active demo
-local wheelX, wheelY = 0, 0
+local scroll = 0
+local selected_module = nil
 
 function love.load()
-  love.graphics.setBackgroundColor(Widgets.palette.bg[1], Widgets.palette.bg[2], Widgets.palette.bg[3])
-
-  Clay.initialize(love.graphics.getDimensions())
-  Clay.registerFont("default", love.graphics.newFont(15))
-  Clay.registerFont("title", love.graphics.newFont(20))
-  Clay.registerFont("display", function(size) return love.graphics.newFont(size) end)
-end
-
-function love.resize(w, h)
-  Clay.setLayoutDimensions(w, h)
-end
-
-function love.wheelmoved(dx, dy)
-  wheelX = wheelX + dx
-  wheelY = wheelY + dy
-end
-
-function love.update(dt)
-  Clay.setPointerState(love.mouse.getX(), love.mouse.getY(), love.mouse.isDown(1))
-  Clay.updateScrollContainers(true, wheelX, wheelY, dt)
-  wheelX, wheelY = 0, 0
-end
-
-local function findDemo(key)
-  for _, demo in ipairs(DEMOS) do
-    if demo.key == key then return demo end
-  end
-end
-
-local function drawMenu()
-  Clay.element({
-    id = "MenuWrapper",
-    layout = { 
-      direction = "column", 
-      sizing = { width = "grow", height = "grow" }, 
-      childAlignment = { x = "center", y = "center" } 
-    }
-  }, function()
-    Clay.element({
-      id = "MenuCenter",
-      layout = { direction = "column", childGap = 32, sizing = { width = Clay.sizing.fixed(480) } }
-    }, function()
-      
-      -- Header
-      Clay.element({ layout = { direction = "column", childGap = 8, childAlignment = { x = "center" } } }, function()
-        Clay.text("clay.lua + foley.lua", { fontId = "title", color = Widgets.palette.text })
-        Clay.text("Pick a library to explore.", { color = Widgets.palette.textDim })
-      end)
-
-      -- Cards
-      Clay.element({ id = "MenuCards", layout = { direction = "column", childGap = 16, sizing = { width = "grow" } } }, function()
-        for i, demo in ipairs(DEMOS) do
-          local accentColor = (i == 1) and Widgets.palette.pink or Widgets.palette.mint
-          Widgets.actionCard({
-            id = "Card:" .. demo.key,
-            title = demo.label,
-            subtitle = demo.subtitle,
-            accentColor = accentColor,
-            onClick = function()
-              activeDemo = demo.key
-              activeKey = demo.sections[1].key
-            end,
-          })
-        end
-      end)
-      
-    end)
-  end)
-end
-
-local function drawDemo(demo)
-  Clay.element({
-    id = "DemoHeader",
-    layout = { childGap = 10, sizing = { width = "grow" }, childAlignment = { y = "center" } },
-    clip = { horizontal = true },
-  }, function()
-    Widgets.button({
-      id = "Back",
-      label = "< Menu",
-      hoverSound = "tick",
-      clickSound = "switch",
-      onClick = function()
-        activeDemo = nil
-        activeKey = nil
-      end,
-    })
-    Clay.text(demo.label .. " -- feature tour", { fontId = "title", color = Widgets.palette.text })
-  end)
-
-  Widgets.sectionTabBar({
-    id = "SectionTabs",
-    items = demo.sections,
-    active = activeKey,
-    onSelect = function(key) activeKey = key end,
-  })
-
-  for _, section in ipairs(demo.sections) do
-    if section.key == activeKey then
-      section.module.declare()
-    end
-  end
+    font = love.graphics.newFont(14)
+    love.graphics.setFont(font)
 end
 
 function love.draw()
-  Clay.beginLayout()
+    local width, height = love.graphics.getDimensions()
 
-  Clay.element({
-    id = "Root",
-    layout = {
-      direction = "column",
-      sizing = { width = "grow", height = "grow" },
-      padding = 14,
-      childGap = 14,
-    },
-    backgroundColor = Widgets.palette.bg,
-  }, function()
-    local demo = activeDemo and findDemo(activeDemo)
-    if demo then
-      drawDemo(demo)
-    else
-      drawMenu()
+    if state == "menu" then
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf("LÖVE API Viewer", 0, height / 2 - 60, width, "center")
+        
+        local mx, my = love.mouse.getPosition()
+        local bw, bh = 200, 40
+        local bx, by = width / 2 - bw / 2, height / 2
+        
+        local hover = mx > bx and mx < bx + bw and my > by and my < by + bh
+        if hover then
+            love.graphics.setColor(0.4, 0.4, 0.4)
+        else
+            love.graphics.setColor(0.2, 0.2, 0.2)
+        end
+        love.graphics.rectangle("fill", bx, by, bw, bh, 5)
+        
+        love.graphics.setColor(1, 1, 1)
+        love.graphics.printf("View Documentation", bx, by + 12, bw, "center")
+        
+    elseif state == "api_list" then
+        love.graphics.setColor(0.8, 0.8, 0.8)
+        love.graphics.print("LÖVE API Modules (Click to view, ESC to go back)", 20, 20)
+        
+        local mx, my = love.mouse.getPosition()
+        
+        for i, m in ipairs(modules) do
+            local y = 60 + (i - 1) * 35 + scroll
+            local bx, by, bw, bh = 20, y, 300, 30
+            
+            if my > 60 and my < height - 20 then
+                if mx > bx and mx < bx + bw and my > by and my < by + bh then
+                    love.graphics.setColor(0.4, 0.4, 0.4)
+                else
+                    love.graphics.setColor(0.2, 0.2, 0.2)
+                end
+                love.graphics.rectangle("fill", bx, by, bw, bh, 4)
+                
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.print(m.name, bx + 10, by + 8)
+            end
+        end
+        
+    elseif state == "api_detail" then
+        love.graphics.setColor(0.8, 0.8, 0.8)
+        love.graphics.print("Module: " .. selected_module.name .. " (ESC to go back)", 20, 20)
+        
+        local y = 60 + scroll
+        local wrap_limit = width - 40
+        
+        love.graphics.setColor(1, 1, 1)
+        local _, wrapped_desc = font:getWrap(selected_module.description or "No description.", wrap_limit)
+        for _, line in ipairs(wrapped_desc) do
+            love.graphics.print(line, 20, y)
+            y = y + 20
+        end
+        y = y + 20
+        
+        if selected_module.functions then
+            love.graphics.setColor(0.5, 0.8, 0.5)
+            love.graphics.print("Functions:", 20, y)
+            y = y + 25
+            
+            for i, f in ipairs(selected_module.functions) do
+                if y > 20 and y < height + 100 then -- Simple culling
+                    love.graphics.setColor(0.4, 0.7, 1)
+                    love.graphics.print(f.name, 20, y)
+                    y = y + 20
+                    
+                    love.graphics.setColor(0.7, 0.7, 0.7)
+                    local _, wrapped = font:getWrap(f.description or "", wrap_limit)
+                    for _, line in ipairs(wrapped) do
+                        love.graphics.print(line, 40, y)
+                        y = y + 16
+                    end
+                    y = y + 10
+                else
+                    -- Still need to calculate height if culled so scroll height is correct
+                    y = y + 20
+                    local _, wrapped = font:getWrap(f.description or "", wrap_limit)
+                    y = y + 16 * #wrapped + 10
+                end
+            end
+        else
+            love.graphics.print("No functions documented.", 20, y)
+        end
     end
-  end)
+end
 
-  Clay.render(Clay.endLayout())
+function love.mousepressed(x, y, button, istouch, presses)
+    local width, height = love.graphics.getDimensions()
+    
+    if button == 1 then
+        if state == "menu" then
+            local bw, bh = 200, 40
+            local bx, by = width / 2 - bw / 2, height / 2
+            if x > bx and x < bx + bw and y > by and y < by + bh then
+                state = "api_list"
+                scroll = 0
+            end
+        elseif state == "api_list" then
+            for i, m in ipairs(modules) do
+                local my = 60 + (i - 1) * 35 + scroll
+                local bx, by, bw, bh = 20, my, 300, 30
+                if x > bx and x < bx + bw and y > by and y < by + bh then
+                    selected_module = m
+                    state = "api_detail"
+                    scroll = 0
+                    break
+                end
+            end
+        end
+    end
+end
+
+function love.wheelmoved(x, y)
+    if state == "api_list" or state == "api_detail" then
+        scroll = scroll + y * 40
+        if scroll > 0 then scroll = 0 end
+    end
+end
+
+function love.keypressed(key)
+    if key == "escape" then
+        if state == "api_detail" then
+            state = "api_list"
+            scroll = 0
+        elseif state == "api_list" then
+            state = "menu"
+            scroll = 0
+        end
+    end
 end
