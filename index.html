@@ -121,26 +121,11 @@ button, select, input { font: inherit; color: inherit; }
 .tab-add { padding: 0 12px; color: var(--txt-dim); }
 .tab-add:hover { color: var(--pink); }
 
-.edit-wrap { display: flex; min-height: 0; overflow: hidden; }
-.gutter {
-  flex: 0 0 auto; padding: 12px 10px 12px 12px;
-  overflow: hidden;
-  color: #4d475e; text-align: right;
-  line-height: var(--lh);
-  user-select: none;
-  border-right: 1px solid var(--ink-2);
-  background: var(--ink);
-}
-#code {
-  flex: 1; min-width: 0;
-  padding: 12px 16px 12px 12px;
-  border: 0; resize: none;
-  background: var(--ink); color: var(--txt);
-  line-height: var(--lh);
-  white-space: pre; overflow: auto; tab-size: 4;
-  outline: none;
-}
-#code::selection { background: #4a2440; }
+.edit-wrap { display: flex; min-height: 0; overflow: hidden; background: var(--ink); }
+#editor-container { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+#editor-container .cm-editor { flex: 1; height: 100%; outline: none; }
+#editor-container .cm-scroller { font: 13px/1.5 var(--mono); }
+#editor-container .cm-gutters { background: var(--ink); color: #4d475e; border-right: 1px solid var(--ink-2); }
 .asset-note {
   flex: 1; display: grid; place-content: center; gap: 6px;
   color: var(--txt-dim); text-align: center; padding: 24px;
@@ -344,9 +329,7 @@ button, select, input { font: inherit; color: inherit; }
   <div class="split">
     <section class="editor">
       <div class="tabs" id="tabs" role="tablist"></div>
-      <div class="edit-wrap">
-        <div class="gutter" id="gutter" aria-hidden="true">1</div>
-        <textarea id="code" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" aria-label="Source code"></textarea>
+      <div class="edit-wrap" id="editor-container">
         <div class="asset-note hidden" id="assetnote"></div>
       </div>
       <div>
@@ -530,6 +513,69 @@ button, select, input { font: inherit; color: inherit; }
 })();
 </script>
 
+<script src="./love_api.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "@codemirror/state": "https://esm.sh/@codemirror/state",
+    "@codemirror/view": "https://esm.sh/@codemirror/view",
+    "@codemirror/commands": "https://esm.sh/@codemirror/commands",
+    "@codemirror/language": "https://esm.sh/@codemirror/language",
+    "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete",
+    "@codemirror/lang-lua": "https://esm.sh/@codemirror/lang-lua"
+  }
+}
+</script>
+<script type="module">
+import { EditorState } from "@codemirror/state";
+import { EditorView, keymap, lineNumbers, highlightActiveLineGutter } from "@codemirror/view";
+import { defaultKeymap, indentWithTab } from "@codemirror/commands";
+import { lua } from "@codemirror/lang-lua";
+import { autocompletion } from "@codemirror/autocomplete";
+
+function loveAutocomplete(context) {
+  let word = context.matchBefore(/\w*/);
+  if (word.from == word.to && !context.explicit) return null;
+  let before = context.matchBefore(/love\.\w*/);
+  if (before) {
+    let options = window.LOVE_API.modules.map(mod => ({label: mod.name, type: "namespace", info: mod.description}));
+    for (let f of window.LOVE_API.functions || []) options.push({label: f.name, type: "function", info: f.description});
+    return { from: before.from + 5, options: options, validFor: /^\w*$/ };
+  }
+  for (let mod of window.LOVE_API.modules) {
+    let re = new RegExp(`love\\.${mod.name}\\.\\w*`);
+    let modBefore = context.matchBefore(re);
+    if (modBefore) {
+      let options = (mod.functions || []).map(f => ({label: f.name, type: "function", info: f.description}));
+      return { from: modBefore.from + 6 + mod.name.length, options: options, validFor: /^\w*$/ };
+    }
+  }
+  return null;
+}
+
+window.editor = new EditorView({
+  state: EditorState.create({
+    extensions: [
+      lineNumbers(), highlightActiveLineGutter(),
+      keymap.of([indentWithTab, ...defaultKeymap]),
+      lua(), autocompletion({override: [loveAutocomplete]}),
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged && window.onEdit) window.onEdit();
+      }),
+      EditorView.theme({
+        "&": { color: "#d8d4e2", backgroundColor: "#14131a" },
+        ".cm-content": { caretColor: "#e8489b" },
+        "&.cm-focused .cm-cursor": { borderLeftColor: "#e8489b" },
+        "&.cm-focused .cm-selectionBackground, ::selection": { backgroundColor: "#4a2440" },
+        ".cm-gutters": { backgroundColor: "#14131a", color: "#4d475e", border: "none" }
+      }, {dark: true})
+    ]
+  }),
+  parent: document.getElementById("editor-container")
+});
+
+window.onEdit = onEdit;
+</script>
 <script>
 "use strict";
 
@@ -4719,14 +4765,14 @@ let editorLoaded = false;
 function syncActiveFile() {
   if (!editorLoaded) return;
   const f = state.files.get(state.active);
-  if (f && !f.binary) f.text = el("code").value;
+  if (f && !f.binary && window.editor) f.text = window.editor.state.doc.toString();
 }
 
 function selectFile(name) {
   syncActiveFile();
   state.active = name;
   const f = state.files.get(name);
-  const code = el("code");
+  const code = el("editor-container");
   const note = el("assetnote");
 
   if (f.binary) {
@@ -4741,10 +4787,10 @@ function selectFile(name) {
   } else {
     note.classList.add("hidden");
     code.classList.remove("hidden");
-    code.value = f.text;
-    code.scrollTop = 0;
+    if (window.editor) {
+      window.editor.dispatch({changes: {from: 0, to: window.editor.state.doc.length, insert: f.text}});
+    }
     editorLoaded = true;
-    updateGutter();
   }
   renderTabs();
 }
@@ -5082,42 +5128,9 @@ function resetProject() {
 /* ------------------------------------------------------------------ *
  * Editor chrome
  * ------------------------------------------------------------------ */
-function updateGutter() {
-  const code = el("code");
-  const lines = code.value.split("\n").length;
-  const gutter = el("gutter");
-  if (gutter.childElementCount !== lines) {
-    gutter.replaceChildren();
-    const frag = document.createDocumentFragment();
-    for (let i = 1; i <= lines; i++) {
-      const d = document.createElement("div");
-      d.textContent = i;
-      frag.appendChild(d);
-    }
-    gutter.appendChild(frag);
-  }
-  gutter.scrollTop = code.scrollTop;
-}
 
-function handleTabKey(ev) {
-  const code = el("code");
-  const { selectionStart: a, selectionEnd: b, value } = code;
-  const lineStart = value.lastIndexOf("\n", a - 1) + 1;
-
-  if (ev.shiftKey) {
-    const before = value.slice(lineStart, a);
-    const cut = before.startsWith("    ") ? 4 : (before.match(/^ {1,3}/) || [""])[0].length;
-    if (!cut) return;
-    code.value = value.slice(0, lineStart) + value.slice(lineStart + cut);
-    code.selectionStart = code.selectionEnd = a - cut;
-  } else {
-    code.value = value.slice(0, a) + "    " + value.slice(b);
-    code.selectionStart = code.selectionEnd = a + 4;
-  }
-}
 
 function onEdit() {
-  updateGutter();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(saveProject, 400);
   if (el("autorun").checked) {
@@ -5152,7 +5165,9 @@ function applyFrame(w, h) {
     conf.text = conf.text
       .replace(/(t\.window\.width\s*=\s*)\d+/, "$1" + w)
       .replace(/(t\.window\.height\s*=\s*)\d+/, "$1" + h);
-    if (state.active === "conf.lua") el("code").value = conf.text;
+    if (state.active === "conf.lua" && window.editor) {
+      window.editor.dispatch({changes: {from: 0, to: window.editor.state.doc.length, insert: conf.text}});
+    }
   }
 
   fitDevice();
@@ -5279,11 +5294,7 @@ function init() {
   const [pw, ph] = select.value.split("x").map(Number);
   applyFrame(pw, ph);
 
-  el("code").addEventListener("input", onEdit);
-  el("code").addEventListener("scroll", () => { el("gutter").scrollTop = el("code").scrollTop; });
-  el("code").addEventListener("keydown", ev => {
-    if (ev.key === "Tab") { ev.preventDefault(); handleTabKey(ev); onEdit(); }
-  });
+
 
   document.addEventListener("keydown", ev => {
     const mod = ev.metaKey || ev.ctrlKey;
