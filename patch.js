@@ -23,7 +23,7 @@ code = code.replace(
   outline: none;
 }
 #code::selection { background: #4a2440; }`,
-`.edit-wrap { display: flex; min-height: 0; overflow: hidden; background: var(--ink); }
+`.edit-wrap { grid-column: 2; grid-row: 1; display: flex; min-height: 0; overflow: hidden; background: var(--ink); }
 #editor-container { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 #editor-container .cm-editor { flex: 1; height: 100%; outline: none; }
 #editor-container .cm-scroller { font: 13px/1.5 var(--mono); }
@@ -51,7 +51,7 @@ code = code.replace(
     "@codemirror/commands": "https://esm.sh/@codemirror/commands",
     "@codemirror/language": "https://esm.sh/@codemirror/language",
     "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete",
-    "@codemirror/lang-lua": "https://esm.sh/@codemirror/lang-lua"
+    "@codemirror/legacy-modes/mode/lua": "https://esm.sh/@codemirror/legacy-modes@6.4.2/mode/lua"
   }
 }
 </script>
@@ -59,7 +59,8 @@ code = code.replace(
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter } from "@codemirror/view";
 import { defaultKeymap, indentWithTab } from "@codemirror/commands";
-import { lua } from "@codemirror/lang-lua";
+import { StreamLanguage } from "@codemirror/language";
+import { lua } from "@codemirror/legacy-modes/mode/lua";
 import { autocompletion } from "@codemirror/autocomplete";
 
 function loveAutocomplete(context) {
@@ -82,24 +83,27 @@ function loveAutocomplete(context) {
   return null;
 }
 
-window.editor = new EditorView({
-  state: EditorState.create({
-    extensions: [
-      lineNumbers(), highlightActiveLineGutter(),
-      keymap.of([indentWithTab, ...defaultKeymap]),
-      lua(), autocompletion({override: [loveAutocomplete]}),
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged && window.onEdit) window.onEdit();
-      }),
-      EditorView.theme({
-        "&": { color: "#d8d4e2", backgroundColor: "#14131a" },
-        ".cm-content": { caretColor: "#e8489b" },
-        "&.cm-focused .cm-cursor": { borderLeftColor: "#e8489b" },
-        "&.cm-focused .cm-selectionBackground, ::selection": { backgroundColor: "#4a2440" },
-        ".cm-gutters": { backgroundColor: "#14131a", color: "#4d475e", border: "none" }
-      }, {dark: true})
-    ]
+window.cmExtensions = [
+  lineNumbers(), highlightActiveLineGutter(),
+  keymap.of([indentWithTab, ...defaultKeymap]),
+  StreamLanguage.define(lua), autocompletion({override: [loveAutocomplete]}),
+  EditorView.updateListener.of((update) => {
+    if (update.docChanged && window.onEdit) window.onEdit();
   }),
+  EditorView.theme({
+    "&": { color: "#d8d4e2", backgroundColor: "#14131a" },
+    ".cm-content": { caretColor: "#e8489b" },
+    "&.cm-focused .cm-cursor": { borderLeftColor: "#e8489b" },
+    "&.cm-focused .cm-selectionBackground, ::selection": { backgroundColor: "#4a2440" },
+    ".cm-gutters": { backgroundColor: "#14131a", color: "#4d475e", border: "none" }
+  }, {dark: true})
+];
+
+window.createEditorState = function(text) {
+  return EditorState.create({ doc: text, extensions: window.cmExtensions });
+};
+
+window.editor = new EditorView({
   parent: document.getElementById("editor-container")
 });
 
@@ -113,8 +117,7 @@ window.onEdit = onEdit;
 code = code.replace(
 `  const f = state.files.get(state.active);
   if (f && !f.binary) f.text = el("code").value;`,
-`  const f = state.files.get(state.active);
-  if (f && !f.binary && window.editor) f.text = window.editor.state.doc.toString();`
+`  // Deprecated: State is now managed natively inside f.cmState`
 );
 
 // 5. selectFile
@@ -133,7 +136,8 @@ code = code.replace(
     updateGutter();`,
 `    code.classList.remove("hidden");
     if (window.editor) {
-      window.editor.dispatch({changes: {from: 0, to: window.editor.state.doc.length, insert: f.text}});
+      if (!f.cmState && window.createEditorState) f.cmState = window.createEditorState(f.text);
+      if (f.cmState) window.editor.setState(f.cmState);
     }
     editorLoaded = true;`
 );
@@ -190,7 +194,8 @@ code = code.replace(
     if (state.active === "conf.lua") el("code").value = conf.text;`,
 `      .replace(/(t\\.window\\.height\\s*=\\s*)\\d+/, "$1" + h);
     if (state.active === "conf.lua" && window.editor) {
-      window.editor.dispatch({changes: {from: 0, to: window.editor.state.doc.length, insert: conf.text}});
+      const f = state.files.get("conf.lua");
+      if (f && f.cmState) window.editor.setState(f.cmState);
     }`
 );
 
@@ -204,5 +209,5 @@ code = code.replace(
 ``
 );
 
-fs.writeFileSync('index.html', code);
-console.log("Patched index.html");
+fs.writeFileSync('patch.js', code);
+console.log("Updated patch.js");
