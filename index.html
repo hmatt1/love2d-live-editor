@@ -60,6 +60,17 @@ button, select, input { font: inherit; color: inherit; }
 }
 .mark svg { width: 13px; height: 13px; fill: currentColor; display: block; }
 .spacer { flex: 1; }
+.srv-label {
+  font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--txt-dim); white-space: nowrap;
+}
+.srv-input {
+  width: 180px; padding: 5px 8px;
+  background: var(--ink); border: 1px solid var(--ink-3); border-radius: 3px;
+  color: var(--txt); font-size: 11px;
+}
+.srv-input:focus { border-color: var(--pink); outline: none; }
+.srv-input::placeholder { color: var(--txt-dim); }
 
 .btn {
   padding: 6px 12px;
@@ -382,6 +393,8 @@ details.folder .tab { padding-left: 24px; }
     <button class="btn" id="pause" disabled><i class="ti ti-player-pause"></i> Pause</button>
     <label class="toggle"><input type="checkbox" id="autorun"> Auto-run</label>
     <span class="spacer"></span>
+    <label class="srv-label" for="serverurl">Server URL</label>
+    <input id="serverurl" class="srv-input" type="text" placeholder="ws://localhost:9000" title="WebSocket URL for socket.tcp() connections. Leave empty to disable." spellcheck="false">
     <button class="btn" id="load"><i class="ti ti-folder-open"></i> Load files</button>
     <button class="btn" id="export"><i class="ti ti-package-export"></i> Export .love</button>
     <button class="btn" id="exporthtml" disabled><i class="ti ti-world"></i> Export .html</button>
@@ -519,6 +532,10 @@ details.folder .tab { padding-left: 24px; }
       };
     } else if (msg.wasmBinary) {
       Module.wasmBinary = msg.wasmBinary;
+    }
+
+    if (msg.serverUrl) {
+      Module.websocket = { url: msg.serverUrl, subprotocol: 'binary' };
     }
 
     // Non-modularised builds boot off a global Module. Modularised ones ignore
@@ -4683,8 +4700,50 @@ const state = {
   archive: new Map(), // name -> { name, binary, text?, bytes? }
   active: "main.lua",
   frame: { w: 390, h: 844 },
-  paused: false
+  paused: false,
+  serverUrl: ''
 };
+
+const NET_LUA = `-- net.lua — WebSocket-backed TCP helper for this LÖVE web build.
+-- Auto-added when a Server URL is configured in the editor.
+--
+-- Usage:
+--   local net = require('net')
+--   net.connect('play.mygame.com', 443, function(conn)
+--     conn:send('hello\\n')
+--   end)
+--
+-- Notes:
+--   * Your server must speak WebSocket (not raw TCP). Use gorilla/websocket,
+--     ws/websockets, or put websockify in front of a plain TCP server.
+--   * TLS is required when the page is served over HTTPS (use wss://).
+--   * setsockopt('tcp-nodelay') errors are harmless — the stub returns -50.
+--   * Frame messages yourself (e.g. newline-delimited JSON); WebSocket message
+--     boundaries do not align with receive() call boundaries.
+
+local socket = require('socket')
+local M = {}
+
+-- Async TCP connect. cb(conn) fires once the connection is open.
+-- Connection polling is driven by love.update automatically.
+function M.connect(host, port, cb)
+  local conn = socket.tcp()
+  conn:settimeout(0)
+  conn:connect(host, port)   -- always EINPROGRESS in this build; safe to ignore
+  local prev = love.update
+  love.update = function(dt)
+    if prev then prev(dt) end
+    local _, w = socket.select(nil, { conn }, 0)
+    if w[conn] then
+      love.update = prev
+      cb(conn)
+    end
+  end
+  return conn
+end
+
+return M
+`;
 
 let glueUrl = null;
 let glueSource = null;
@@ -4850,7 +4909,8 @@ window.addEventListener("message", ev => {
         love: pendingBoot,
         memory: INITIAL_MEMORY,
         glueUrl: glueUrl,
-        glueSource: glueUrl ? null : glueSource
+        glueSource: glueUrl ? null : glueSource,
+        serverUrl: state.serverUrl
       };
       if (wasmModule) payload.wasmModule = wasmModule;
       else if (wasmBytes) payload.wasmBinary = wasmBytes;
@@ -5208,7 +5268,7 @@ function exportLove() {
    a snippet that resolves the glue text, wasm bytes and .love bytes however
    the particular export gets them (inlined base64 vs. fetch()) and then
    calls boot(glueText, wasmBytes, loveBytes). */
-function bootScript(loadDataJs) {
+function bootScript(loadDataJs, serverUrl) {
   return `
 (function () {
   var MEMORY = ${INITIAL_MEMORY};
@@ -5255,6 +5315,7 @@ function bootScript(loadDataJs) {
         return {};
       }
     };
+    ${serverUrl ? `Module.websocket = { url: ${JSON.stringify(serverUrl)}, subprotocol: 'binary' };` : ''}
     window.Module = Module;
 
     var s = document.createElement('script');
@@ -5321,7 +5382,7 @@ function standaloneHtml({ loveB64, glueB64, wasmB64 }) {
   var loveBytes = b64ToBytes("${loveB64}");
   boot(glueText, wasmBytes, loveBytes);`;
 
-  return runnerPageHtml(bootScript(loadDataJs));
+  return runnerPageHtml(bootScript(loadDataJs, state.serverUrl));
 }
 
 /* Fetches love.js, love.wasm and game.love as sibling files instead of
@@ -5336,7 +5397,7 @@ function zipIndexHtml() {
     boot(results[0], new Uint8Array(results[1]), new Uint8Array(results[2]));
   }).catch(function (e) { showError(String(e.message || e)); });`;
 
-  return runnerPageHtml(bootScript(loadDataJs));
+  return runnerPageHtml(bootScript(loadDataJs, state.serverUrl));
 }
 
 function exportHtml() {
@@ -5385,6 +5446,7 @@ async function saveProject() {
   const payload = {
     active: state.active,
     frame: state.frame,
+    serverUrl: state.serverUrl,
     layout: {
       split: document.documentElement.style.getPropertyValue("--split") || "50%",
       console: document.documentElement.style.getPropertyValue("--console") || "250px"
@@ -5431,6 +5493,10 @@ async function loadProject() {
       if (p.layout.console) document.documentElement.style.setProperty("--console", p.layout.console);
     }
     state.active = state.files.has(p.active) ? p.active : "main.lua";
+    if (p.serverUrl) {
+      state.serverUrl = p.serverUrl;
+      el('serverurl').value = p.serverUrl;
+    }
     return state.files.size > 0;
   } catch (e) {
     return false;
@@ -5693,6 +5759,17 @@ async function init() {
   });
   el("editor-btn-restore").addEventListener("click", () => {
     restoreArchivedFile(state.active);
+  });
+
+  el("serverurl").addEventListener("change", () => {
+    const url = el("serverurl").value.trim();
+    el("serverurl").value = url;
+    state.serverUrl = url;
+    if (url && !state.files.has("net.lua")) {
+      state.files.set("net.lua", { name: "net.lua", binary: false, text: NET_LUA });
+      renderTabs();
+    }
+    saveProject();
   });
 
   el("run").addEventListener("click", run);
