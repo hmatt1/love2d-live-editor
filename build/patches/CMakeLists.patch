@@ -1,0 +1,31 @@
+--- CMakeLists.txt.orig	2026-08-16 15:43:24.592611324 +0000
++++ CMakeLists.txt	2026-08-16 15:44:17.265374921 +0000
+@@ -1114,6 +1114,12 @@
+ source_group("modules\\window" FILES ${LOVE_SRC_MODULE_WINDOW_ROOT})
+ source_group("modules\\window\\sdl" FILES ${LOVE_SRC_MODULE_WINDOW_SDL})
+ 
++set(LOVE_SRC_MODULE_FETCH
++	src/modules/fetch/wrap_Fetch.cpp
++	src/modules/fetch/wrap_Fetch.h
++)
++source_group("modules\\fetch" FILES ${LOVE_SRC_MODULE_FETCH})
++
+ ###################################
+ # Third-party libraries
+ ###################################
+@@ -1741,6 +1747,7 @@
+ 	${LOVE_SRC_MODULE_TOUCH}
+ 	${LOVE_SRC_MODULE_VIDEO}
+ 	${LOVE_SRC_MODULE_WINDOW}
++	${LOVE_SRC_MODULE_FETCH}
+ )
+ 
+ include_directories(
+@@ -1803,6 +1810,7 @@
+ 		"-s FORCE_FILESYSTEM=1" # to fix Module.addDependency not existing
+ 		"-lidbfs.js" # to fix the ReferenceError: IDBFS is not defined
+         "-lwebsocket.js" # websocket API
++		"-sFETCH=1"      # emscripten_fetch() for HTTPS requests from Lua
+ 	)
+ 
+ 	if(NOT LOVEJS_COMPAT)

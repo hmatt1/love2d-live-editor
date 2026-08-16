@@ -4745,6 +4745,39 @@ end
 return M
 `;
 
+const FETCH_LUA = `-- fetch.lua — HTTPS request helper for this LÖVE web build.
+-- Auto-added when a Server URL is configured in the editor.
+-- Requires a custom love.wasm built with -sFETCH=1 (see build/ directory).
+--
+-- Usage:
+--   local http = require('fetch')
+--   http.get('https://management.example.com/api/assign', function(status, body, ok)
+--     if ok then local data = json.decode(body) end
+--   end)
+--
+-- Callbacks receive (status: number, body: string, ok: boolean).
+-- Polling is driven by love.update automatically.
+
+local _f = require('love.fetch')
+local M  = {}
+
+local prev = love.update
+love.update = function(dt)
+  if prev then prev(dt) end
+  _f.poll()
+end
+
+function M.get(url, cb)
+  _f.request({ url = url, method = 'GET', onsuccess = cb })
+end
+
+function M.post(url, body, cb)
+  _f.request({ url = url, method = 'POST', body = body, onsuccess = cb })
+end
+
+return M
+`;
+
 let glueUrl = null;
 let glueSource = null;
 let wasmModule = null;
@@ -5765,9 +5798,17 @@ async function init() {
     const url = el("serverurl").value.trim();
     el("serverurl").value = url;
     state.serverUrl = url;
-    if (url && !state.files.has("net.lua")) {
-      state.files.set("net.lua", { name: "net.lua", binary: false, text: NET_LUA });
-      renderTabs();
+    if (url) {
+      let tabsDirty = false;
+      if (!state.files.has("net.lua")) {
+        state.files.set("net.lua", { name: "net.lua", binary: false, text: NET_LUA });
+        tabsDirty = true;
+      }
+      if (!state.files.has("fetch.lua")) {
+        state.files.set("fetch.lua", { name: "fetch.lua", binary: false, text: FETCH_LUA });
+        tabsDirty = true;
+      }
+      if (tabsDirty) renderTabs();
     }
     saveProject();
   });
