@@ -1,6 +1,8 @@
---- CMakeLists.txt.orig	2026-08-16 15:43:24.592611324 +0000
-+++ CMakeLists.txt	2026-08-16 15:44:17.265374921 +0000
-@@ -1114,6 +1114,12 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 59a3799..1260b2b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1114,6 +1114,12 @@ set(LOVE_SRC_MODULE_WINDOW
  source_group("modules\\window" FILES ${LOVE_SRC_MODULE_WINDOW_ROOT})
  source_group("modules\\window\\sdl" FILES ${LOVE_SRC_MODULE_WINDOW_SDL})
  
@@ -13,7 +15,7 @@
  ###################################
  # Third-party libraries
  ###################################
-@@ -1741,6 +1747,7 @@
+@@ -1741,6 +1747,7 @@ set(LOVE_LIB_SRC
  	${LOVE_SRC_MODULE_TOUCH}
  	${LOVE_SRC_MODULE_VIDEO}
  	${LOVE_SRC_MODULE_WINDOW}
@@ -21,7 +23,7 @@
  )
  
  include_directories(
-@@ -1803,6 +1810,7 @@
+@@ -1803,6 +1810,7 @@ if(EMSCRIPTEN)
  		"-s FORCE_FILESYSTEM=1" # to fix Module.addDependency not existing
  		"-lidbfs.js" # to fix the ReferenceError: IDBFS is not defined
          "-lwebsocket.js" # websocket API

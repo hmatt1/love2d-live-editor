@@ -96,14 +96,15 @@ static int w_poll(lua_State *L)
     return 0;
 }
 
-static luaL_Reg funcs[] = {
+static const luaL_Reg funcs[] = {
     { "request", w_request },
     { "poll",    w_poll    },
-    { nullptr,   nullptr   }
+    { NULL,      NULL      }
 };
 
 extern "C" int luaopen_love_fetch(lua_State *L)
 {
-    luaL_newlib(L, funcs);
+    lua_newtable(L);
+    luaL_register(L, NULL, funcs);
     return 1;
 }

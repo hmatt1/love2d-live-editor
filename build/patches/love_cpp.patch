@@ -1,6 +1,8 @@
---- src/modules/love/love.cpp.orig	2026-08-16 15:43:24.595738039 +0000
-+++ src/modules/love/love.cpp	2026-08-16 15:43:42.707004733 +0000
-@@ -163,6 +163,7 @@
+diff --git a/src/modules/love/love.cpp b/src/modules/love/love.cpp
+index 49ce009..bc8ef56 100644
+--- a/src/modules/love/love.cpp
++++ b/src/modules/love/love.cpp
+@@ -163,6 +163,7 @@ extern "C"
  #if defined(LOVE_ENABLE_WINDOW)
  	extern int luaopen_love_window(lua_State*);
  #endif
@@ -8,7 +10,7 @@
  	extern int luaopen_love_nogame(lua_State*);
  	extern int luaopen_love_jitsetup(lua_State*);
  	extern int luaopen_love_arg(lua_State*);
-@@ -228,6 +229,7 @@
+@@ -228,6 +229,7 @@ static const luaL_Reg modules[] = {
  #if defined(LOVE_ENABLE_WINDOW)
  	{ "love.window", luaopen_love_window },
  #endif

@@ -4,7 +4,7 @@ set -euo pipefail
 # Pinned commits for reproducible builds
 LOVEJS_COMMIT="c4f04e185033a7c9fbefa9be3bec88c41a90421b"
 LOVE_COMMIT="32e0716b43a51686f5fa9ac04ca08b6410b698a5"
-MEGA_COMMIT="3bc0b46670a2912c02c54c6977b9510e64e89023"  # emscripten branch HEAD at build time
+MEGA_COMMIT="3bc0b46670a2912c02c54c6977b9510e64e89023"
 
 echo "==> Cloning repositories..."
 git clone --depth=50 https://github.com/Davidobot/love.js lovejs
@@ -15,7 +15,8 @@ cd love_src && git checkout "$LOVE_COMMIT" && cd ..
 
 git clone --depth=50 -b emscripten https://github.com/Davidobot/megasource megasource
 cd megasource && git checkout "$MEGA_COMMIT"
-git submodule update --init --recursive
+# megasource has no .gitmodules — all deps are committed directly.
+# libs/love is supplied via -DMEGA_LOVE at cmake time; no submodule init needed.
 cd ..
 
 echo "==> Injecting fetch module..."
@@ -30,8 +31,9 @@ cd ..
 echo "==> Building compat (no pthreads)..."
 mkdir -p out_compat && cd out_compat
 
-emcmake cmake ../love_src \
-    -DMEGASOURCE="$(pwd)/../megasource" \
+# megasource is the cmake source; -DMEGA_LOVE points it at our patched love source
+emcmake cmake ../megasource \
+    -DMEGA_LOVE="$(pwd)/../love_src" \
     -DLOVE_JIT=0 \
     -DCMAKE_BUILD_TYPE=Release \
     -DLOVEJS_COMPAT=1 \
