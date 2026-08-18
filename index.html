@@ -612,7 +612,8 @@ details.folder .tab { padding-left: 24px; }
     "@codemirror/commands": "https://esm.sh/@codemirror/commands",
     "@codemirror/language": "https://esm.sh/@codemirror/language",
     "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete",
-    "@codemirror/lang-lua": "https://esm.sh/@codincod/codemirror-lang-lua"
+    "@codemirror/lang-lua": "https://esm.sh/@codincod/codemirror-lang-lua",
+    "@lezer/highlight": "https://esm.sh/@lezer/highlight"
   }
 }
 </script>
@@ -620,7 +621,8 @@ details.folder .tab { padding-left: 24px; }
 import { EditorState, StateEffect, Annotation } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter } from "@codemirror/view";
 import { defaultKeymap, indentWithTab, undo, redo, undoDepth, redoDepth, history, invertedEffects, isolateHistory } from "@codemirror/commands";
-import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
+import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
+import { tags as t } from "@lezer/highlight";
 import { lua } from "@codemirror/lang-lua";
 import { autocompletion } from "@codemirror/autocomplete";
 
@@ -817,6 +819,25 @@ function loveAutocomplete(context) {
   return null;
 }
 
+const loveThemeHighlightStyle = HighlightStyle.define([
+  { tag: t.keyword, color: "var(--pink)" },
+  { tag: [t.name, t.deleted, t.character, t.propertyName, t.macroName], color: "var(--amber)" },
+  { tag: [t.function(t.variableName), t.labelName], color: "var(--mint)" },
+  { tag: [t.color, t.constant(t.name), t.standard(t.name)], color: "var(--amber)" },
+  { tag: [t.definition(t.name), t.separator], color: "var(--txt)" },
+  { tag: [t.typeName, t.className, t.number, t.changed, t.annotation, t.modifier, t.self, t.namespace], color: "var(--mint)" },
+  { tag: [t.operator, t.operatorKeyword, t.url, t.escape, t.regexp, t.link, t.special(t.string)], color: "var(--pink)" },
+  { tag: [t.meta, t.comment], color: "#5f5975" },
+  { tag: t.strong, fontWeight: "bold" },
+  { tag: t.emphasis, fontStyle: "italic" },
+  { tag: t.strikethrough, textDecoration: "line-through" },
+  { tag: t.link, color: "#5f5975", textDecoration: "underline" },
+  { tag: t.heading, fontWeight: "bold", color: "var(--pink)" },
+  { tag: [t.atom, t.bool, t.special(t.variableName)], color: "var(--mint)" },
+  { tag: [t.processingInstruction, t.string, t.inserted], color: "var(--amber)" },
+  { tag: t.invalid, color: "var(--pink)" }
+]);
+
 window.cmExtensions = [
   lineNumbers(), highlightActiveLineGutter(),
   keymap.of([
@@ -825,7 +846,7 @@ window.cmExtensions = [
     { key: "Shift-Mod-z", run: (view) => { window.globalHistory.redo(view); return true; }, preventDefault: true },
     indentWithTab, ...defaultKeymap
   ]),
-  lua(), syntaxHighlighting(defaultHighlightStyle), autocompletion({override: [loveAutocomplete]}),
+  lua(), syntaxHighlighting(loveThemeHighlightStyle), autocompletion({override: [loveAutocomplete]}),
   window.globalHistory.getLocalExtension(),
   EditorView.updateListener.of((update) => {
     if (update.docChanged && window.onEdit) window.onEdit();
