@@ -70,8 +70,8 @@ function startServer(port) {
   });
 }
 
-const EXPORT_BUTTONS = { love: "#export", html: "#exporthtml", zip: "#exportzip" };
-const EXPORT_NAMES = { love: "game.love", html: "index.html", zip: "game.zip" };
+const EXPORT_BUTTONS = { love: "#export", html: "#exporthtml", zip: "#exportzip", editorzip: "#exporteditorzip" };
+const EXPORT_NAMES = { love: "game.love", html: "index.html", zip: "game.zip", editorzip: "editor-project.zip" };
 
 const COMMANDS = {
   async launch(arg) {
@@ -153,12 +153,16 @@ const COMMANDS = {
     console.log("run ->", state, boot);
   },
 
-  // export love|html|zip <outfile-path>
+  // export love|html|zip|editorzip <outfile-path>
   async export(arg) {
     if (!page) return console.log("ERROR: launch first");
     const [kind, outPath] = arg.split(/\s+/);
     const sel = EXPORT_BUTTONS[kind];
-    if (!sel) return console.log("ERROR: kind must be one of love|html|zip");
+    if (!sel) return console.log("ERROR: kind must be one of love|html|zip|editorzip");
+
+    // Open the export modal first
+    await page.click("#export-menu-btn");
+
     const dest = outPath || path.join(DL_DIR, EXPORT_NAMES[kind]);
     const [download] = await Promise.all([page.waitForEvent("download"), page.click(sel)]);
     await download.saveAs(dest);

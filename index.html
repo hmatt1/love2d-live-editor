@@ -378,6 +378,20 @@ details.folder .tab { padding-left: 24px; }
   body.tab-game.has-log-badge.strip-fatal .console-strip { color: var(--pink); }
   body.tab-game.has-log-badge:not(.strip-err):not(.strip-fatal) .console-strip { color: var(--txt-dim); }
 }
+
+/* ---------- modal ---------- */
+.modal {
+  padding: 0;
+  border: 1px solid var(--ink-3);
+  border-radius: 8px;
+  background: var(--ink-1);
+  color: var(--txt);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  margin: auto;
+}
+.modal::backdrop { background: rgba(0,0,0,0.6); }
+.modal-content { padding: 20px; width: 320px; }
+.modal h3 { color: var(--txt); margin-bottom: 12px; margin-top: 0; }
 </style>
 </head>
 
@@ -396,15 +410,40 @@ details.folder .tab { padding-left: 24px; }
     <label class="srv-label" for="serverurl">Server URL</label>
     <input id="serverurl" class="srv-input" type="text" placeholder="ws://localhost:9000" title="WebSocket URL for socket.tcp() connections. Leave empty to disable." spellcheck="false">
     <button class="btn" id="load"><i class="ti ti-folder-open"></i> Load files</button>
-    <button class="btn" id="export"><i class="ti ti-package-export"></i> Export .love</button>
-    <button class="btn" id="exporthtml" disabled><i class="ti ti-world"></i> Export .html</button>
-    <button class="btn" id="exportzip" disabled><i class="ti ti-file-zip"></i> Download zip</button>
+    <button class="btn" id="export-menu-btn"><i class="ti ti-package-export"></i> Export</button>
     <button class="btn" id="reset"><i class="ti ti-rotate-clockwise"></i> Reset</button>
     <div style="width: 1px; height: 16px; background: var(--ink-3); margin: 0 4px;"></div>
     <button class="btn" onclick="playTestBeep()"><i class="ti ti-volume"></i> Test Audio</button>
     <a href="https://github.com/hmatt1/love2d-live-editor/" target="_blank" class="btn" style="text-decoration: none;"><i class="ti ti-brand-github"></i> GitHub</a>
     <input type="file" id="filepicker" multiple class="hidden">
   </header>
+
+  <dialog id="export-dialog" class="modal">
+    <div class="modal-content">
+      <h3>Export Project</h3>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <button class="btn" id="export" style="justify-content: flex-start; text-align: left; padding: 10px; height: auto;">
+          <i class="ti ti-package-export" style="font-size: 20px;"></i> 
+          <div><b>Export .love</b><br><span style="font-size: 10px; color: var(--txt-dim); font-weight: normal;">Native LÖVE archive. Best for desktop play.</span></div>
+        </button>
+        <button class="btn" id="exporthtml" disabled style="justify-content: flex-start; text-align: left; padding: 10px; height: auto;">
+          <i class="ti ti-world" style="font-size: 20px;"></i> 
+          <div><b>Export .html</b><br><span style="font-size: 10px; color: var(--txt-dim); font-weight: normal;">Single-file playable webpage. Best for quick sharing.</span></div>
+        </button>
+        <button class="btn" id="exportzip" disabled style="justify-content: flex-start; text-align: left; padding: 10px; height: auto;">
+          <i class="ti ti-file-zip" style="font-size: 20px;"></i> 
+          <div><b>Download zip</b><br><span style="font-size: 10px; color: var(--txt-dim); font-weight: normal;">Web build separated out. Best for itch.io or web hosts.</span></div>
+        </button>
+        <button class="btn" id="exporteditorzip" disabled style="justify-content: flex-start; text-align: left; padding: 10px; height: auto;">
+          <i class="ti ti-file-code" style="font-size: 20px;"></i> 
+          <div><b>Download editor zip</b><br><span style="font-size: 10px; color: var(--txt-dim); font-weight: normal;">Web build + editor. Best for sharing editable demos.</span></div>
+        </button>
+      </div>
+      <div style="text-align: right; margin-top: 16px;">
+        <button class="btn" onclick="document.getElementById('export-dialog').close()">Cancel</button>
+      </div>
+    </div>
+  </dialog>
 
   <div class="split">
     <section class="editor">
@@ -886,7 +925,7 @@ const INLINE_WASM_B64 = "__LOVE_WASM_B64__";
 const HAS_INLINE_RUNTIME = INLINE_GLUE_B64.charAt(0) !== "_";
 
 const INITIAL_MEMORY = 33554432;
-const STORAGE_KEY = "love-live-editor/project/v1";
+const STORAGE_KEY = window.__STORAGE_KEY__ || "love-live-editor/project/v1";
 const MAX_LOG_LINES = 600;
 const TEXT_EXT = /\.(lua|txt|json|md|csv|glsl|frag|vert|vs|fs|cfg|ini|xml|ya?ml)$/i;
 const AUTORUN_DELAY = 900;
@@ -4887,6 +4926,7 @@ async function loadRuntime() {
   el("run").disabled = false;
   el("exporthtml").disabled = false;
   el("exportzip").disabled = false;
+  el("exporteditorzip").disabled = false;
 }
 
 /* ------------------------------------------------------------------ *
@@ -5512,6 +5552,69 @@ function exportHtml() {
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
+async function exportEditorZip() {
+  if (!runtimeReady) { log("err", "The LÖVE runtime is still loading."); return; }
+  if (!state.files.has("main.lua")) { log("err", "No main.lua in the project. Cannot export without it."); return; }
+  if (!wasmBytes) { log("err", "No wasm binary loaded; can't build an editor export."); return; }
+
+  let indexHtmlSource = "";
+  try {
+    const res = await fetch("index.html");
+    if (!res.ok) throw new Error("bad status");
+    indexHtmlSource = await res.text();
+  } catch (err) {
+    log("err", "Could not fetch index.html. Export failed.");
+    return;
+  }
+
+  let loveApiSource = "";
+  try {
+    const res = await fetch("love_api.js");
+    if (!res.ok) throw new Error("bad status");
+    loveApiSource = await res.text();
+  } catch (err) {
+    log("err", "Could not fetch love_api.js. Export failed.");
+    return;
+  }
+
+  syncActiveFile();
+  const payload = {
+    active: state.active,
+    frame: state.frame,
+    serverUrl: state.serverUrl,
+    layout: {
+      split: document.documentElement.style.getPropertyValue("--split") || "50%",
+      console: document.documentElement.style.getPropertyValue("--console") || "250px"
+    },
+    files: [...state.files.values()].map(f =>
+      f.binary ? { name: f.name, binary: true, b64: bytesToB64(f.bytes) } : { name: f.name, binary: false, text: (f.cmState ? f.cmState.doc.toString() : f.text) }),
+    archive: [...state.archive.values()].map(f =>
+      f.binary ? { name: f.name, binary: true, b64: bytesToB64(f.bytes) } : { name: f.name, binary: false, text: f.text })
+  };
+
+  const uniqueId = Date.now().toString(36) + Math.random().toString(36).substr(2);
+  const scriptTag = `
+<script type="application/json" id="injected-project">
+${JSON.stringify(payload).replace(/</g, '\\u003c')}
+<\/script>
+<script>window.__STORAGE_KEY__ = "love-live-editor/project/" + "${uniqueId}";<\/script>`;
+  const injectedHtml = indexHtmlSource.replace("</head>", scriptTag + "\n</head>");
+
+  const entries = [
+    { name: "index.html", data: enc.encode(injectedHtml) },
+    { name: "love_api.js", data: enc.encode(loveApiSource) },
+    { name: "love.js", data: enc.encode(glueSource) },
+    { name: "love.wasm", data: wasmBytes }
+  ];
+
+  const blob = new Blob([zipStore(entries)], { type: "application/zip" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "editor-project.zip";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
 function exportZip() {
   if (!runtimeReady) { log("err", "The LÖVE runtime is still loading."); return; }
   if (!state.files.has("main.lua")) { log("err", "No main.lua in the project. LÖVE will not start without it."); return; }
@@ -5567,6 +5670,18 @@ async function loadProject() {
       if (raw) p = JSON.parse(raw);
     } catch (e) { }
   }
+
+  // If IDB is empty, load from injected project if available
+  if (!p) {
+    const injectedEl = document.getElementById("injected-project");
+    if (injectedEl) {
+      try {
+        p = JSON.parse(injectedEl.textContent);
+      } catch (e) {
+        console.error("Failed to parse injected project JSON.", e);
+      }
+    }
+  }
   if (!p) return false;
   try {
     state.files.clear();
@@ -5607,18 +5722,48 @@ async function resetProject() {
   
   state.files.clear();
   
-  for (const f of starterFiles(state.frame.w, state.frame.h)) state.files.set(f.name, { name: f.name, binary: false, text: f.text });
-  
-  if (typeof LOVE_API_ZIP_B64 !== "undefined") {
+  const injectedEl = document.getElementById("injected-project");
+  if (injectedEl) {
     try {
-      const bytes = b64ToBytes(LOVE_API_ZIP_B64);
-      const entries = await unzip(bytes);
-      for (const e of entries) {
-        if (TEXT_EXT.test(e.name)) state.files.set(e.name, { name: e.name, binary: false, text: dec.decode(e.data) });
-        else state.files.set(e.name, { name: e.name, binary: true, bytes: e.data });
+      const p = JSON.parse(injectedEl.textContent);
+      for (const f of p.files) {
+        if (f.binary) state.files.set(f.name, { name: f.name, binary: true, bytes: b64ToBytes(f.b64) });
+        else state.files.set(f.name, { name: f.name, binary: false, text: f.text });
       }
-    } catch (err) {
-      console.error("Failed to unpack love-api on reset", err);
+      state.archive.clear();
+      if (p.archive) {
+        for (const f of p.archive) {
+          if (f.binary) state.archive.set(f.name, { name: f.name, binary: true, bytes: b64ToBytes(f.b64) });
+          else state.archive.set(f.name, { name: f.name, binary: false, text: f.text });
+        }
+      }
+      if (p.frame) state.frame = p.frame;
+      if (p.layout) {
+        if (p.layout.split) document.documentElement.style.setProperty("--split", p.layout.split);
+        if (p.layout.console) document.documentElement.style.setProperty("--console", p.layout.console);
+      }
+      if (p.serverUrl) {
+        state.serverUrl = p.serverUrl;
+        el('serverurl').value = p.serverUrl;
+      }
+      if (p.active && state.files.has(p.active)) state.active = p.active;
+    } catch (e) {
+      console.error("Failed to parse injected project JSON on reset.", e);
+    }
+  } else {
+    for (const f of starterFiles(state.frame.w, state.frame.h)) state.files.set(f.name, { name: f.name, binary: false, text: f.text });
+    
+    if (typeof LOVE_API_ZIP_B64 !== "undefined") {
+      try {
+        const bytes = b64ToBytes(LOVE_API_ZIP_B64);
+        const entries = await unzip(bytes);
+        for (const e of entries) {
+          if (TEXT_EXT.test(e.name)) state.files.set(e.name, { name: e.name, binary: false, text: dec.decode(e.data) });
+          else state.files.set(e.name, { name: e.name, binary: true, bytes: e.data });
+        }
+      } catch (err) {
+        console.error("Failed to unpack love-api on reset", err);
+      }
     }
   }
 
@@ -5885,9 +6030,11 @@ async function init() {
   el("stop").addEventListener("click", () => stop(false));
   el("pause").addEventListener("click", togglePause);
   el("reset").addEventListener("click", resetProject);
-  el("export").addEventListener("click", exportLove);
-  el("exporthtml").addEventListener("click", exportHtml);
-  el("exportzip").addEventListener("click", exportZip);
+  el("export-menu-btn").addEventListener("click", () => el("export-dialog").showModal());
+  el("export").addEventListener("click", () => { el("export-dialog").close(); exportLove(); });
+  el("exporthtml").addEventListener("click", () => { el("export-dialog").close(); exportHtml(); });
+  el("exportzip").addEventListener("click", () => { el("export-dialog").close(); exportZip(); });
+  el("exporteditorzip").addEventListener("click", () => { el("export-dialog").close(); exportEditorZip(); });
   el("copylog").addEventListener("click", () => {
     const logText = Array.from(el("console").childNodes).map(n => n.textContent).join("\n");
     if (!logText) return;
