@@ -384,14 +384,44 @@ details.folder .tab { padding-left: 24px; }
   padding: 0;
   border: 1px solid var(--ink-3);
   border-radius: 8px;
-  background: var(--ink-1);
+  background: var(--ink);
   color: var(--txt);
   box-shadow: 0 4px 12px rgba(0,0,0,0.5);
   margin: auto;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
 }
 .modal::backdrop { background: rgba(0,0,0,0.6); }
-.modal-content { padding: 20px; width: 320px; }
-.modal h3 { color: var(--txt); margin-bottom: 12px; margin-top: 0; }
+.modal-content { 
+  padding: 20px; 
+  width: 360px; 
+  max-width: 100%; 
+  box-sizing: border-box; 
+  overflow-y: auto;
+  max-height: calc(100vh - 32px);
+}
+.modal h3 { color: var(--txt); margin-bottom: 16px; margin-top: 0; }
+
+.export-btn {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 14px 16px;
+  height: auto;
+  white-space: normal;
+}
+.export-btn i { font-size: 24px; flex-shrink: 0; }
+.export-btn b { font-size: 12px; }
+.export-btn span {
+  font-size: 11px;
+  color: var(--txt-dim);
+  font-weight: normal;
+  line-height: 1.4;
+  display: block;
+  margin-top: 4px;
+}
 </style>
 </head>
 
@@ -421,22 +451,22 @@ details.folder .tab { padding-left: 24px; }
   <dialog id="export-dialog" class="modal">
     <div class="modal-content">
       <h3>Export Project</h3>
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        <button class="btn" id="export" style="justify-content: flex-start; text-align: left; padding: 10px; height: auto;">
-          <i class="ti ti-package-export" style="font-size: 20px;"></i> 
-          <div><b>Export .love</b><br><span style="font-size: 10px; color: var(--txt-dim); font-weight: normal;">Native LÖVE archive. Best for desktop play.</span></div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button class="btn export-btn" id="export">
+          <i class="ti ti-package-export"></i> 
+          <div><b>Export .love</b><span>Native LÖVE archive. Best for desktop play.</span></div>
         </button>
-        <button class="btn" id="exporthtml" disabled style="justify-content: flex-start; text-align: left; padding: 10px; height: auto;">
-          <i class="ti ti-world" style="font-size: 20px;"></i> 
-          <div><b>Export .html</b><br><span style="font-size: 10px; color: var(--txt-dim); font-weight: normal;">Single-file playable webpage. Best for quick sharing.</span></div>
+        <button class="btn export-btn" id="exporthtml" disabled>
+          <i class="ti ti-world"></i> 
+          <div><b>Export .html</b><span>Single-file playable webpage. Best for quick sharing.</span></div>
         </button>
-        <button class="btn" id="exportzip" disabled style="justify-content: flex-start; text-align: left; padding: 10px; height: auto;">
-          <i class="ti ti-file-zip" style="font-size: 20px;"></i> 
-          <div><b>Download zip</b><br><span style="font-size: 10px; color: var(--txt-dim); font-weight: normal;">Web build separated out. Best for itch.io or web hosts.</span></div>
+        <button class="btn export-btn" id="exportzip" disabled>
+          <i class="ti ti-file-zip"></i> 
+          <div><b>Download zip</b><span>Web build separated out. Best for itch.io or web hosts.</span></div>
         </button>
-        <button class="btn" id="exporteditorzip" disabled style="justify-content: flex-start; text-align: left; padding: 10px; height: auto;">
-          <i class="ti ti-file-code" style="font-size: 20px;"></i> 
-          <div><b>Download editor zip</b><br><span style="font-size: 10px; color: var(--txt-dim); font-weight: normal;">Web build + editor. Best for sharing editable demos.</span></div>
+        <button class="btn export-btn" id="exporteditorzip" disabled>
+          <i class="ti ti-file-code"></i> 
+          <div><b>Download editor zip</b><span>Web build + editor. Best for sharing editable demos.</span></div>
         </button>
       </div>
       <div style="text-align: right; margin-top: 16px;">
