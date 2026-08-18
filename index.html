@@ -661,8 +661,7 @@ class HistoryView {
                 if (e.is(fsCreateFile)) {
                   state.files.set(e.value.name, { name: e.value.name, binary: false, text: e.value.text });
                   state.archive.delete(e.value.name);
-                  state.active = e.value.name; // Focus the file
-                  changed = true;
+                  changed = e.value.name;
                 } else if (e.is(fsDeleteFile)) {
                   const f = state.files.get(e.value.name);
                   if (f) {
@@ -680,8 +679,8 @@ class HistoryView {
                     state.archive.set(archiveName, { ...f, archiveName, originalName: f.name, text: e.value.text });
                   }
                   state.files.delete(e.value.name);
-                  if (state.active === e.value.name) state.active = "main.lua";
-                  changed = true;
+                  if (state.active === e.value.name) changed = "main.lua";
+                  else changed = state.active;
                 }
               }
 
@@ -693,7 +692,7 @@ class HistoryView {
                 });
               }
             }
-            if (changed) { renderTabs(); selectFile(state.active); }
+            if (changed) { renderTabs(); selectFile(typeof changed === 'string' ? changed : state.active); }
           })
         ]
       })
@@ -5198,7 +5197,6 @@ function renderTabs() {
 
   addMissingBtn("conf.lua", `function love.conf(t)\n  t.window.width = 800\n  t.window.height = 600\n  t.window.title = "My Game"\nend\n`, "ti-settings");
   addMissingBtn("fetch.lua", `-- Fetch API\nlocal fetch = {}\n\nfunction fetch.request(url, options)\n  -- TODO: implement\nend\n\nreturn fetch\n`, "ti-download");
-  addMissingBtn("README.md", `# My Game\n\nA game made with LÖVE.\n`, "ti-file-description");
 
   if (missingFilesContainer.children.length > 0) {
     bar.appendChild(missingFilesContainer);
@@ -5278,7 +5276,6 @@ function newFile() {
   if (state.files.has(clean)) { selectFile(clean); return; }
   
   if (window.globalHistory) {
-    state.active = clean;
     window.globalHistory.createFile(clean, "");
   } else {
     state.files.set(clean, { name: clean, binary: false, text: "" });
@@ -5783,6 +5780,13 @@ function initDevicePan() {
     device.style.setProperty("--dx", "0px");
     device.style.setProperty("--dy", "0px");
   });
+
+  device.addEventListener("reset-pan", () => {
+    panX = 0;
+    panY = 0;
+    device.style.setProperty("--dx", "0px");
+    device.style.setProperty("--dy", "0px");
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -5879,6 +5883,7 @@ async function init() {
   });
   select.addEventListener("change", () => {
     const [w, h] = select.value.split("x").map(Number);
+    el("device").dispatchEvent(new Event("reset-pan"));
     applyFrame(w, h);
   });
 
