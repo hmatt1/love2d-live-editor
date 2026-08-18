@@ -5182,10 +5182,11 @@ function renderTabs() {
       btn.innerHTML = `<i class='ti ${icon}'></i> Add ${filename}`;
       btn.style.justifyContent = "center";
       btn.onclick = () => {
+        const text = typeof templateContent === "function" ? templateContent() : templateContent;
         if (window.globalHistory) {
-          window.globalHistory.createFile(filename, templateContent);
+          window.globalHistory.createFile(filename, text);
         } else {
-          state.files.set(filename, { name: filename, text: templateContent, cmState: null });
+          state.files.set(filename, { name: filename, text: text, cmState: null });
           selectFile(filename);
           renderTabs();
         }
@@ -5195,7 +5196,7 @@ function renderTabs() {
     }
   };
 
-  addMissingBtn("conf.lua", `function love.conf(t)\n  t.window.width = 800\n  t.window.height = 600\n  t.window.title = "My Game"\nend\n`, "ti-settings");
+  addMissingBtn("conf.lua", () => defaultConf(state.frame.w, state.frame.h), "ti-settings");
   addMissingBtn("fetch.lua", `-- Fetch API\nlocal fetch = {}\n\nfunction fetch.request(url, options)\n  -- TODO: implement\nend\n\nreturn fetch\n`, "ti-download");
 
   if (missingFilesContainer.children.length > 0) {
