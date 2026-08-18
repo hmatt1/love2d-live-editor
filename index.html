@@ -5162,6 +5162,40 @@ function renderTabs() {
     }
     bar.appendChild(details);
   }
+
+  const missingFilesContainer = document.createElement("div");
+  missingFilesContainer.style.padding = "16px 8px";
+  missingFilesContainer.style.display = "flex";
+  missingFilesContainer.style.flexDirection = "column";
+  missingFilesContainer.style.gap = "8px";
+
+  const addMissingBtn = (filename, templateContent, icon) => {
+    if (!state.files.has(filename)) {
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.innerHTML = `<i class='ti ${icon}'></i> Add ${filename}`;
+      btn.style.justifyContent = "center";
+      btn.onclick = () => {
+        if (window.globalHistory) {
+          window.globalHistory.createFile(filename, templateContent);
+        } else {
+          state.files.set(filename, { name: filename, text: templateContent, cmState: null });
+          selectFile(filename);
+          renderTabs();
+        }
+        saveProject();
+      };
+      missingFilesContainer.appendChild(btn);
+    }
+  };
+
+  addMissingBtn("conf.lua", `function love.conf(t)\n  t.window.width = 800\n  t.window.height = 600\n  t.window.title = "My Game"\nend\n`, "ti-settings");
+  addMissingBtn("fetch.lua", `-- Fetch API\nlocal fetch = {}\n\nfunction fetch.request(url, options)\n  -- TODO: implement\nend\n\nreturn fetch\n`, "ti-download");
+  addMissingBtn("README.md", `# My Game\n\nA game made with LÖVE.\n`, "ti-file-description");
+
+  if (missingFilesContainer.children.length > 0) {
+    bar.appendChild(missingFilesContainer);
+  }
 }
 
 function restoreArchivedFile(dName) {
