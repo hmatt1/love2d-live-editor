@@ -5218,7 +5218,8 @@ function renderTabs() {
   };
 
   addMissingBtn("conf.lua", () => defaultConf(state.frame.w, state.frame.h), "ti-settings");
-  addMissingBtn("fetch.lua", `-- Fetch API\nlocal fetch = {}\n\nfunction fetch.request(url, options)\n  -- TODO: implement\nend\n\nreturn fetch\n`, "ti-download");
+  addMissingBtn("net.lua", NET_LUA, "ti-world");
+  addMissingBtn("fetch.lua", FETCH_LUA, "ti-download");
 
   if (missingFilesContainer.children.length > 0) {
     bar.appendChild(missingFilesContainer);
