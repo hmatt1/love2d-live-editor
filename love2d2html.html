@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>love2d2html</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:     #0f0f14;
+  --surf:   #1a1a22;
+  --border: #2a2a38;
+  --text:   #c8c8d8;
+  --muted:  #666;
+  --pink:   #f2a6c8;
+  --green:  #7ecf9a;
+  --red:    #f28a8a;
+  --mono:   ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 24px;
+}
+
+header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 42px;
+  background: var(--surf);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  gap: 8px;
+}
+
+header h1 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pink);
+  letter-spacing: 0.03em;
+}
+
+header a {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  text-decoration: none;
+}
+header a:hover { color: var(--text); }
+
+.drop-zone {
+  width: min(480px, 100%);
+  height: 200px;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--pink);
+  background: rgba(242, 166, 200, 0.04);
+}
+.drop-zone.has-file {
+  border-style: solid;
+  border-color: var(--green);
+  background: rgba(126, 207, 154, 0.04);
+}
+.drop-zone.error {
+  border-color: var(--red);
+  background: rgba(242, 138, 138, 0.04);
+}
+
+.drop-icon {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.drop-label {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.6;
+}
+.drop-label strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.drop-label.file-name {
+  color: var(--green);
+}
+.drop-label.err-text {
+  color: var(--red);
+}
+
+.drop-label .file-size {
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  width: min(480px, 100%);
+}
+
+button {
+  flex: 1;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surf);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+button:hover:not(:disabled) {
+  background: #22222e;
+  border-color: var(--pink);
+  color: var(--pink);
+}
+button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+button.busy {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.status {
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 16px;
+  text-align: center;
+  width: min(480px, 100%);
+}
+.status.ok   { color: var(--green); }
+.status.fail { color: var(--red); }
+
+#file-input { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>love2d2html</h1>
+  <a href="./">← live editor</a>
+</header>
+
+<div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Drop .love file or click to browse">
+  <div class="drop-icon">📦</div>
+  <div id="drop-label" class="drop-label">
+    <strong>Drop a .love file here</strong><br>or click to browse
+  </div>
+</div>
+
+<div class="actions">
+  <button id="btn-html" disabled>Export HTML</button>
+  <button id="btn-zip" disabled>Download ZIP</button>
+</div>
+
+<div id="status" class="status">upload a .love file to get started</div>
+
+<input id="file-input" type="file" accept=".love">
+
+<script>
+'use strict';
+
+const RUNTIME_BASE = 'https://hmatt1.github.io/love2d-live-editor/';
+const INITIAL_MEMORY = 33554432;
+const enc = new TextEncoder();
+
+let loveBytes = null;
+let busy = false;
+
+/* ---- UI helpers ---- */
+const dropZone  = document.getElementById('drop-zone');
+const dropLabel = document.getElementById('drop-label');
+const fileInput = document.getElementById('file-input');
+const btnHtml   = document.getElementById('btn-html');
+const btnZip    = document.getElementById('btn-zip');
+const statusEl  = document.getElementById('status');
+
+function setStatus(msg, cls) {
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+function setFile(name, bytes) {
+  loveBytes = bytes;
+  const kb = (bytes.length / 1024).toFixed(1);
+  dropZone.className = 'drop-zone has-file';
+  dropLabel.className = 'drop-label file-name';
+  dropLabel.innerHTML = `<strong>${name}</strong><br><span class="file-size">${kb} KB</span>`;
+  btnHtml.disabled = false;
+  btnZip.disabled = false;
+  setStatus('ready to export');
+}
+
+function setError(msg) {
+  loveBytes = null;
+  dropZone.className = 'drop-zone error';
+  dropLabel.className = 'drop-label err-text';
+  dropLabel.textContent = msg;
+  btnHtml.disabled = true;
+  btnZip.disabled = true;
+  setStatus(msg, 'fail');
+}
+
+function setBusy(on) {
+  busy = on;
+  btnHtml.classList.toggle('busy', on);
+  btnZip.classList.toggle('busy', on);
+  btnHtml.disabled = on || !loveBytes;
+  btnZip.disabled  = on || !loveBytes;
+}
+
+function triggerDownload(filename, mimeType, data) {
+  const blob = new Blob([data], { type: mimeType });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* ---- File handling ---- */
+function loadFile(file) {
+  if (!/\.love$/i.test(file.name)) {
+    setError(`"${file.name}" is not a .love file`);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => setFile(file.name, new Uint8Array(e.target.result));
+  reader.onerror = () => setError('Could not read file.');
+  reader.readAsArrayBuffer(file);
+}
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+});
+
+/* ---- Runtime fetch ---- */
+async function fetchRuntime() {
+  const [glueText, wasmBuf] = await Promise.all([
+    fetch(RUNTIME_BASE + 'love.js').then(r => { if (!r.ok) throw new Error('GET love.js: HTTP ' + r.status); return r.text(); }),
+    fetch(RUNTIME_BASE + 'love.wasm').then(r => { if (!r.ok) throw new Error('GET love.wasm: HTTP ' + r.status); return r.arrayBuffer(); })
+  ]);
+  return { glueText, wasmBytes: new Uint8Array(wasmBuf) };
+}
+
+/* ---- Export functions (adapted from love2d-live-editor/index.html) ---- */
+function bytesToB64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function zipStore(entries) {
+  const enc2 = new TextEncoder();
+  const local = [], central = [];
+  let offset = 0;
+  for (const e of entries) {
+    const name = enc2.encode(e.name);
+    const crc = crc32(e.data);
+    const lh = new Uint8Array(30 + name.length);
+    const l = new DataView(lh.buffer);
+    l.setUint32(0, 0x04034b50, true); l.setUint16(4, 20, true); l.setUint16(6, 0x0800, true);
+    l.setUint16(8, 0, true); l.setUint16(10, 0, true); l.setUint16(12, 0x0021, true);
+    l.setUint32(14, crc, true); l.setUint32(18, e.data.length, true); l.setUint32(22, e.data.length, true);
+    l.setUint16(26, name.length, true); l.setUint16(28, 0, true);
+    lh.set(name, 30);
+    local.push(lh, e.data);
+    const ch = new Uint8Array(46 + name.length);
+    const c = new DataView(ch.buffer);
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true);
+    c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true); c.setUint16(12, 0, true);
+    c.setUint16(14, 0x0021, true); c.setUint32(16, crc, true);
+    c.setUint32(20, e.data.length, true); c.setUint32(24, e.data.length, true);
+    c.setUint16(28, name.length, true); c.setUint32(38, 0, true); c.setUint32(42, offset, true);
+    ch.set(name, 46);
+    central.push(ch);
+    offset += lh.length + e.data.length;
+  }
+  const cdSize = central.reduce((n, c) => n + c.length, 0);
+  const eocd = new Uint8Array(22);
+  const v = new DataView(eocd.buffer);
+  v.setUint32(0, 0x06054b50, true); v.setUint16(8, entries.length, true);
+  v.setUint16(10, entries.length, true); v.setUint32(12, cdSize, true); v.setUint32(16, offset, true);
+  const out = new Uint8Array(offset + cdSize + 22);
+  let p = 0;
+  for (const chunk of local.concat(central, [eocd])) { out.set(chunk, p); p += chunk.length; }
+  return out;
+}
+
+function bootScript(loadDataJs) {
+  return `
+(function () {
+  var MEMORY = ${INITIAL_MEMORY};
+  var canvas = document.getElementById('canvas');
+  var errBox = document.getElementById('err');
+  function showError(t) {
+    errBox.style.display = 'block';
+    errBox.textContent += (errBox.textContent ? '\\n' : '') + t;
+  }
+  function writeFile(Module, name, bytes) {
+    if (typeof Module.FS_createDataFile === 'function') {
+      Module.FS_createDataFile('/', name, bytes, true, true, true);
+    } else if (Module.FS && typeof Module.FS.writeFile === 'function') {
+      Module.FS.writeFile('/' + name, bytes);
+    } else {
+      throw new Error('This love.js build exports neither FS_createDataFile nor FS.');
+    }
+  }
+  function boot(glueText, wasmBytes, loveBytes) {
+    var Module = {
+      canvas: canvas,
+      arguments: ['./game.love'],
+      INITIAL_MEMORY: MEMORY,
+      TOTAL_MEMORY: MEMORY,
+      print: function (t) { console.log(t); },
+      printErr: function (t) { console.error(t); showError(String(t)); },
+      setStatus: function (t) { if (t) console.log(t); },
+      preRun: [function () {
+        try { writeFile(Module, 'game.love', loveBytes); }
+        catch (e) { showError('Could not write game.love into the virtual filesystem. ' + e); }
+      }],
+      onRuntimeInitialized: function () { canvas.focus(); },
+      onAbort: function (what) { showError('Runtime aborted: ' + what); },
+      instantiateWasm: function (imports, success) {
+        WebAssembly.instantiate(wasmBytes, imports).then(
+          function (result) { success(result.instance, result.module); },
+          function (e) { showError('WebAssembly.instantiate failed: ' + e); }
+        );
+        return {};
+      }
+    };
+    window.Module = Module;
+    var s = document.createElement('script');
+    s.textContent = glueText;
+    document.body.appendChild(s);
+    var factory = window.Love;
+    if (typeof factory === 'function') {
+      try {
+        var ready = factory(Module);
+        if (ready && typeof ready.catch === 'function')
+          ready.catch(function (e) { showError('Module initialisation rejected: ' + e); });
+      } catch (e) { showError('Love(Module) threw: ' + e); }
+    }
+    canvas.focus();
+  }
+  ${loadDataJs}
+  document.addEventListener('mousedown', function () { canvas.focus(); });
+  window.addEventListener('error', function (e) {
+    showError((e.message || 'Uncaught error') + (e.lineno ? ' (line ' + e.lineno + ')' : ''));
+  });
+})();
+`;
+}
+
+function runnerPageHtml(bootJs) {
+  return `<!doctype html><html><head><meta charset="utf-8">
+<title>LÖVE game</title>
+<style>
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000}
+body{display:flex;align-items:center;justify-content:center}
+canvas{display:block;background:#000;outline:none;
+  width:auto!important;height:auto!important;max-width:100%!important;max-height:100%!important}
+#err{position:fixed;left:12px;right:12px;bottom:12px;max-height:40%;overflow:auto;display:none;
+  padding:10px 12px;border-radius:6px;background:rgba(20,10,15,.92);color:#f2a6c8;
+  font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;z-index:1}
+</style></head><body>
+<canvas id="canvas" tabindex="0"></canvas>
+<div id="err"></div>
+<scr` + `ipt>${bootJs}</scr` + `ipt>
+</body></html>`;
+}
+
+function standaloneHtml({ loveB64, glueB64, wasmB64 }) {
+  const loadDataJs = `function b64ToBytes(b64) {
+    var bin = atob(b64);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  var glueText = new TextDecoder().decode(b64ToBytes("${glueB64}"));
+  var wasmBytes = b64ToBytes("${wasmB64}");
+  var loveBytes = b64ToBytes("${loveB64}");
+  boot(glueText, wasmBytes, loveBytes);`;
+  return runnerPageHtml(bootScript(loadDataJs));
+}
+
+function zipIndexHtml() {
+  const loadDataJs = `Promise.all([
+    fetch('love.js').then(function (r) { if (!r.ok) throw new Error('GET love.js failed: HTTP ' + r.status); return r.text(); }),
+    fetch('love.wasm').then(function (r) { if (!r.ok) throw new Error('GET love.wasm failed: HTTP ' + r.status); return r.arrayBuffer(); }),
+    fetch('game.love').then(function (r) { if (!r.ok) throw new Error('GET game.love failed: HTTP ' + r.status); return r.arrayBuffer(); })
+  ]).then(function (results) {
+    boot(results[0], new Uint8Array(results[1]), new Uint8Array(results[2]));
+  }).catch(function (e) { showError(String(e.message || e)); });`;
+  return runnerPageHtml(bootScript(loadDataJs));
+}
+
+/* ---- Button handlers ---- */
+btnHtml.addEventListener('click', async () => {
+  if (busy || !loveBytes) return;
+  setBusy(true);
+  setStatus('Fetching runtime…');
+  try {
+    const { glueText, wasmBytes } = await fetchRuntime();
+    setStatus('Building export…');
+    const html = standaloneHtml({
+      loveB64: bytesToB64(loveBytes),
+      glueB64: bytesToB64(enc.encode(glueText)),
+      wasmB64: bytesToB64(wasmBytes)
+    });
+    triggerDownload('index.html', 'text/html', enc.encode(html));
+    setStatus('Done — index.html saved.', 'ok');
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'fail');
+  } finally {
+    setBusy(false);
+  }
+});
+
+btnZip.addEventListener('click', async () => {
+  if (busy || !loveBytes) return;
+  setBusy(true);
+  setStatus('Fetching runtime…');
+  try {
+    const { glueText, wasmBytes } = await fetchRuntime();
+    setStatus('Building ZIP…');
+    const entries = [
+      { name: 'index.html', data: enc.encode(zipIndexHtml()) },
+      { name: 'love.js',    data: enc.encode(glueText) },
+      { name: 'love.wasm',  data: wasmBytes },
+      { name: 'game.love',  data: loveBytes }
+    ];
+    triggerDownload('game.zip', 'application/zip', zipStore(entries));
+    setStatus('Done — game.zip saved.', 'ok');
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'fail');
+  } finally {
+    setBusy(false);
+  }
+});
+</script>
+</body>
+</html>
